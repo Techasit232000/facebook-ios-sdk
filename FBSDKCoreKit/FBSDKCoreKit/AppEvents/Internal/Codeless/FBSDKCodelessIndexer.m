@@ -1,71 +1,45 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
-#import "FBSDKCodelessIndexer.h"
-
-#import <UIKit/UIKit.h>
-
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 #import <objc/runtime.h>
 #import <sys/sysctl.h>
 #import <sys/utsname.h>
+#import <UIKit/UIKit.h>
 
-#import "FBSDKAdvertiserIDProviding.h"
-#import "FBSDKAppEventsUtility.h"
-#import "FBSDKDataPersisting.h"
-#import "FBSDKGraphRequestConnecting.h"
-#import "FBSDKGraphRequestConnectionFactoryProtocol.h"
-#import "FBSDKGraphRequestFactoryProtocol.h"
-#import "FBSDKGraphRequestHTTPMethod.h"
-#import "FBSDKGraphRequestProtocol.h"
 #import "FBSDKInternalUtility+Internal.h"
-#import "FBSDKObjectDecoding.h"
-#import "FBSDKServerConfiguration.h"
-#import "FBSDKServerConfigurationManager.h"
-#import "FBSDKServerConfigurationProviding.h"
-#import "FBSDKSettings+Internal.h"
-#import "FBSDKSettingsProtocol.h"
-#import "FBSDKSwizzling.h"
-#import "FBSDKUnarchiverProvider.h"
-#import "FBSDKUtility.h"
 #import "FBSDKViewHierarchy.h"
 #import "FBSDKViewHierarchyMacros.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 @interface FBSDKCodelessIndexer ()
 
-@property (class, nullable, nonatomic, readonly) id<FBSDKGraphRequestFactory> graphRequestFactory;
-@property (class, nullable, nonatomic, readonly) id<FBSDKServerConfigurationProviding> serverConfigurationProvider;
-@property (class, nullable, nonatomic, readonly) id<FBSDKDataPersisting> store;
-@property (class, nullable, nonatomic, readonly, copy) id<FBSDKGraphRequestConnectionFactory> graphRequestConnectionFactory;
-@property (class, nullable, nonatomic, readonly, copy) Class<FBSDKSwizzling> swizzler;
-@property (class, nullable, nonatomic, readonly) id<FBSDKSettings> settings;
-@property (class, nullable, nonatomic, readonly) id<FBSDKAdvertiserIDProviding> advertiserIDProvider;
+@property (class, nullable, nonatomic) id<FBSDKGraphRequestFactory> graphRequestFactory;
+@property (class, nullable, nonatomic) id<FBSDKServerConfigurationProviding> serverConfigurationProvider;
+@property (class, nullable, nonatomic) id<FBSDKDataPersisting> dataStore;
+@property (class, nullable, nonatomic) id<FBSDKGraphRequestConnectionFactory> graphRequestConnectionFactory;
+@property (class, nullable, nonatomic) Class<FBSDKSwizzling> swizzler;
+@property (class, nullable, nonatomic) id<FBSDKSettings> settings;
+@property (class, nullable, nonatomic) id<FBSDKAdvertiserIDProviding> advertiserIDProvider;
 
 @end
 
 @implementation FBSDKCodelessIndexer
 
-static BOOL _isCodelessIndexing;
-static BOOL _isCheckingSession;
-static BOOL _isCodelessIndexingEnabled;
-static BOOL _isGestureSet;
+static BOOL _isCodelessIndexing = NO;
+static BOOL _isCheckingSession = NO;
+static BOOL _isCodelessIndexingEnabled = NO;
+static BOOL _isGestureSet = NO;
 
 static NSMutableDictionary<NSString *, id> *_codelessSetting;
 static const NSTimeInterval kTimeout = 4.0;
@@ -75,7 +49,7 @@ static NSTimer *_appIndexingTimer;
 static NSString *_lastTreeHash;
 static id<FBSDKGraphRequestFactory> _graphRequestFactory;
 static id<FBSDKServerConfigurationProviding> _serverConfigurationProvider;
-static id<FBSDKDataPersisting> _store;
+static id<FBSDKDataPersisting> _dataStore;
 static id<FBSDKGraphRequestConnectionFactory> _graphRequestConnectionFactory;
 static Class<FBSDKSwizzling> _swizzler;
 static id<FBSDKSettings> _settings;
@@ -84,56 +58,91 @@ static id<FBSDKSettings> _settings;
 
 + (void)configureWithGraphRequestFactory:(id<FBSDKGraphRequestFactory>)graphRequestFactory
              serverConfigurationProvider:(id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
-                                   store:(id<FBSDKDataPersisting>)store
+                               dataStore:(id<FBSDKDataPersisting>)dataStore
            graphRequestConnectionFactory:(id<FBSDKGraphRequestConnectionFactory>)graphRequestConnectionFactory
                                 swizzler:(Class<FBSDKSwizzling>)swizzler
                                 settings:(id<FBSDKSettings>)settings
                     advertiserIDProvider:(id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
 {
   if (self == FBSDKCodelessIndexer.class) {
-    _graphRequestFactory = graphRequestFactory;
-    _serverConfigurationProvider = serverConfigurationProvider;
-    _store = store;
-    _graphRequestConnectionFactory = graphRequestConnectionFactory;
-    _swizzler = swizzler;
-    _settings = settings;
-    _advertiserIDProvider = advertiserIDProvider;
+    self.graphRequestFactory = graphRequestFactory;
+    self.serverConfigurationProvider = serverConfigurationProvider;
+    self.dataStore = dataStore;
+    self.graphRequestConnectionFactory = graphRequestConnectionFactory;
+    self.swizzler = swizzler;
+    self.settings = settings;
+    self.advertiserIDProvider = advertiserIDProvider;
   }
 }
 
-+ (id<FBSDKGraphRequestFactory>)graphRequestFactory
++ (nullable id<FBSDKGraphRequestFactory>)graphRequestFactory
 {
   return _graphRequestFactory;
 }
 
-+ (id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
++ (void)setGraphRequestFactory:(nullable id<FBSDKGraphRequestFactory>)graphRequestFactory
+{
+  _graphRequestFactory = graphRequestFactory;
+}
+
++ (nullable id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
 {
   return _serverConfigurationProvider;
 }
 
-+ (id<FBSDKDataPersisting>)store
++ (void)setServerConfigurationProvider:(nullable id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
 {
-  return _store;
+  _serverConfigurationProvider = serverConfigurationProvider;
 }
 
-+ (id<FBSDKGraphRequestConnectionFactory>)graphRequestConnectionFactory
++ (nullable id<FBSDKDataPersisting>)dataStore
+{
+  return _dataStore;
+}
+
++ (void)setDataStore:(nullable id<FBSDKDataPersisting>)dataStore
+{
+  _dataStore = dataStore;
+}
+
++ (nullable id<FBSDKGraphRequestConnectionFactory>)graphRequestConnectionFactory
 {
   return _graphRequestConnectionFactory;
 }
 
-+ (Class<FBSDKSwizzling>)swizzler
++ (void)setGraphRequestConnectionFactory:(nullable id<FBSDKGraphRequestConnectionFactory>)graphRequestConnectionFactory
+{
+  _graphRequestConnectionFactory = graphRequestConnectionFactory;
+}
+
++ (nullable Class<FBSDKSwizzling>)swizzler
 {
   return _swizzler;
 }
 
-+ (id<FBSDKSettings>)settings
++ (void)setSwizzler:(nullable Class<FBSDKSwizzling>)swizzler
+{
+  _swizzler = swizzler;
+}
+
++ (nullable id<FBSDKSettings>)settings
 {
   return _settings;
 }
 
-+ (id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
++ (void)setSettings:(nullable id<FBSDKSettings>)settings
+{
+  _settings = settings;
+}
+
++ (nullable id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
 {
   return _advertiserIDProvider;
+}
+
++ (void)setAdvertiserIDProvider:(nullable id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
+{
+  _advertiserIDProvider = advertiserIDProvider;
 }
 
 + (void)enable
@@ -156,8 +165,6 @@ static id<FBSDKSettings> _settings;
   });
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 // DO NOT call this function, it is only called once in the enable function
 + (void)loadCodelessSettingWithCompletionBlock:(FBSDKCodelessSettingLoadBlock)completionBlock
 {
@@ -173,7 +180,7 @@ static id<FBSDKSettings> _settings;
 
     // load the defaults
     NSString *defaultKey = [NSString stringWithFormat:CODELESS_SETTING_KEY, appID];
-    NSData *data = [self.store objectForKey:defaultKey];
+    NSData *data = [self.dataStore fb_objectForKey:defaultKey];
     if ([data isKindOfClass:NSData.class]) {
       NSMutableDictionary<NSString *, id> *codelessSetting = nil;
       id<FBSDKObjectDecoding> unarchiver = [FBSDKUnarchiverProvider createInsecureUnarchiverFor:data];
@@ -211,7 +218,7 @@ static id<FBSDKSettings> _settings;
           [FBSDKTypeUtility dictionary:_codelessSetting setObject:@(isCodelessSetupEnabled) forKey:CODELESS_SETUP_ENABLED_KEY];
           [FBSDKTypeUtility dictionary:_codelessSetting setObject:[NSDate date] forKey:CODELESS_SETTING_TIMESTAMP_KEY];
           // update the cached copy in user defaults
-          [self.store setObject:[NSKeyedArchiver archivedDataWithRootObject:_codelessSetting] forKey:defaultKey];
+          [self.dataStore fb_setObject:[NSKeyedArchiver archivedDataWithRootObject:_codelessSetting requiringSecureCoding:NO error:nil] forKey:defaultKey];
           completionBlock(isCodelessSetupEnabled, codelessLoadingError);
         }
       }];
@@ -220,9 +227,7 @@ static id<FBSDKSettings> _settings;
   }];
 }
 
-#pragma clang diagnostic pop
-
-+ (id<FBSDKGraphRequest>)requestToLoadCodelessSetup:(NSString *)appID
++ (nullable id<FBSDKGraphRequest>)requestToLoadCodelessSetup:(NSString *)appID
 {
   NSString *advertiserID = self.advertiserIDProvider.advertiserID;
   if (!advertiserID) {
@@ -237,7 +242,8 @@ static id<FBSDKSettings> _settings;
                                                                                  parameters:parameters
                                                                                 tokenString:nil
                                                                                  HTTPMethod:nil
-                                                                                      flags:FBSDKGraphRequestFlagSkipClientToken | FBSDKGraphRequestFlagDisableErrorRecovery];
+                                                                                      flags:FBSDKGraphRequestFlagSkipClientToken | FBSDKGraphRequestFlagDisableErrorRecovery
+                                                          useAlternativeDefaultDomainPrefix:NO];
   return request;
 }
 
@@ -267,17 +273,26 @@ static id<FBSDKSettings> _settings;
   if (_isCheckingSession) {
     return;
   }
+  
+  if ([[FBSDKDomainHandler sharedInstance] isDomainHandlingEnabled]) {
+    if (![self.settings isAdvertiserTrackingEnabled]) {
+      return;
+    }
+  }
 
   _isCheckingSession = YES;
   NSDictionary<NSString *, id> *parameters = @{
     CODELESS_INDEXING_SESSION_ID_KEY : [self currentSessionDeviceID],
     CODELESS_INDEXING_EXT_INFO_KEY : [self extInfo]
   };
-  id<FBSDKGraphRequest> request = [_graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/%@",
-                                                                                         [self.settings appID],
-                                                                                         CODELESS_INDEXING_SESSION_ENDPOINT]
-                                                                             parameters:parameters
-                                                                             HTTPMethod:FBSDKHTTPMethodPOST];
+  id<FBSDKGraphRequest> request = [self.graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/%@",
+                                                                                             [self.settings appID],
+                                                                                             CODELESS_INDEXING_SESSION_ENDPOINT]
+                                                                                 parameters:parameters
+                                                                                tokenString:nil
+                                                                                 HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                      flags:FBSDKGraphRequestFlagNone
+                                                          useAlternativeDefaultDomainPrefix:NO];
   [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
     _isCheckingSession = NO;
     if ([result isKindOfClass:[NSDictionary<NSString *, id> class]]) {
@@ -312,9 +327,9 @@ static id<FBSDKSettings> _settings;
   struct utsname systemInfo;
   uname(&systemInfo);
   NSString *machine = @(systemInfo.machine);
-  NSString *advertiserID = [FBSDKAppEventsUtility.shared advertiserID] ?: @"";
+  NSString *advertiserID = self.advertiserIDProvider.advertiserID ?: @"";
   machine = machine ?: @"";
-  NSString *debugStatus = [FBSDKAppEventsUtility isDebugBuild] ? @"1" : @"0";
+  NSString *debugStatus = [FBSDKAppEventsUtility.shared isDebugBuild] ? @"1" : @"0";
 #if TARGET_OS_SIMULATOR
   NSString *isSimulator = @"1";
 #else
@@ -395,16 +410,19 @@ static id<FBSDKSettings> _settings;
 
   NSBundle *mainBundle = NSBundle.mainBundle;
   NSString *version = [mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-  id<FBSDKGraphRequest> request = [_graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/%@",
-                                                                                         [self.settings appID],
-                                                                                         CODELESS_INDEXING_ENDPOINT]
-                                                                             parameters:@{
+  id<FBSDKGraphRequest> request = [self.graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/%@",
+                                                                                             [self.settings appID],
+                                                                                             CODELESS_INDEXING_ENDPOINT]
+                                                                                 parameters:@{
                                      CODELESS_INDEXING_TREE_KEY : tree,
                                      CODELESS_INDEXING_APP_VERSION_KEY : version ?: @"",
                                      CODELESS_INDEXING_PLATFORM_KEY : @"iOS",
                                      CODELESS_INDEXING_SESSION_ID_KEY : [self currentSessionDeviceID]
                                    }
-                                                                             HTTPMethod:FBSDKHTTPMethodPOST];
+                                                                                tokenString:nil
+                                                                                 HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                      flags:FBSDKGraphRequestFlagNone
+                                                          useAlternativeDefaultDomainPrefix:NO];
   _isCodelessIndexing = YES;
   [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
     _isCodelessIndexing = NO;
@@ -417,11 +435,11 @@ static id<FBSDKSettings> _settings;
   }];
 }
 
-+ (NSString *)currentViewTree
++ (nullable NSString *)currentViewTree
 {
-  NSMutableArray *trees = [NSMutableArray array];
+  NSMutableArray<NSDictionary<NSString *, id> *> *trees = [NSMutableArray array];
 
-  NSArray *windows = UIApplication.sharedApplication.windows;
+  NSArray<__kindof UIWindow *> *windows = UIApplication.sharedApplication.windows;
   for (UIWindow *window in windows) {
     NSDictionary<NSString *, id> *tree = [FBSDKViewHierarchy recursiveCaptureTreeWithCurrentNode:window
                                                                                       targetNode:nil
@@ -440,7 +458,7 @@ static id<FBSDKSettings> _settings;
     return nil;
   }
 
-  NSArray *viewTrees = [trees reverseObjectEnumerator].allObjects;
+  NSArray<NSDictionary<NSString *, id> *> *viewTrees = [trees reverseObjectEnumerator].allObjects;
 
   NSData *data = UIImageJPEGRepresentation([FBSDKCodelessIndexer screenshot], 0.5);
   NSString *screenshot = [data base64EncodedStringWithOptions:0];
@@ -459,7 +477,7 @@ static id<FBSDKSettings> _settings;
   return tree;
 }
 
-+ (UIImage *)screenshot
++ (nullable UIImage *)screenshot
 {
   UIWindow *window = [FBSDKInternalUtility.sharedUtility findWindow];
   if (!window) {
@@ -502,7 +520,9 @@ static id<FBSDKSettings> _settings;
   };
 }
 
-#if DEBUG && FBTEST
+#pragma clang diagnostic pop
+
+#if DEBUG
 
 + (void)reset
 {
@@ -511,13 +531,13 @@ static id<FBSDKSettings> _settings;
   _isCodelessIndexingEnabled = NO;
   _isGestureSet = NO;
   _codelessSetting = nil;
-  _graphRequestFactory = nil;
-  _serverConfigurationProvider = nil;
-  _store = nil;
-  _graphRequestConnectionFactory = nil;
-  _swizzler = nil;
-  _settings = nil;
-  _advertiserIDProvider = nil;
+  self.graphRequestFactory = nil;
+  self.serverConfigurationProvider = nil;
+  self.dataStore = nil;
+  self.graphRequestConnectionFactory = nil;
+  self.swizzler = nil;
+  self.settings = nil;
+  self.advertiserIDProvider = nil;
   _deviceSessionID = nil;
   _lastTreeHash = nil;
 }

@@ -1,24 +1,16 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import TestTools
 
-class AuthenticationTokenTests: XCTestCase {
+final class AuthenticationTokenTests: XCTestCase {
   private var token: AuthenticationToken?
 
   override func setUp() {
@@ -48,52 +40,27 @@ class AuthenticationTokenTests: XCTestCase {
     )
   }
 
-  func testEncoding() {
+  func testEncodingAndDecoding() throws {
     let expectedTokenString = "expectedTokenString"
     let expectedNonce = "expectedNonce"
     let expectedGraphDomain = "expectedGraphDomain"
 
-    let coder = TestCoder()
-    token = AuthenticationToken(
+    let token = AuthenticationToken(
       tokenString: expectedTokenString,
       nonce: expectedNonce,
       graphDomain: expectedGraphDomain
     )
-    token?.encode(with: coder)
 
-    XCTAssertEqual(
-      coder.encodedObject["FBSDKAuthenticationTokenTokenStringCodingKey"] as? String,
-      expectedTokenString,
-      "Should encode the expected token string"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["FBSDKAuthenticationTokenNonceCodingKey"] as? String,
-      expectedNonce,
-      "Should encode the expected nonce string"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["FBSDKAuthenticationTokenGraphDomainCodingKey"] as? String,
-      expectedGraphDomain,
-      "Should encode the expected graph domain"
-    )
-  }
+    let decodedObject = try CodabilityTesting.encodeAndDecode(token)
 
-  func testDecodingEntryWithMethodName() {
-    let coder = TestCoder()
-    token = AuthenticationToken(coder: coder)
+    // Test Objects
+    XCTAssertNotEqual(decodedObject, token, .isCodable) // isEqual method not implemented yet
+    XCTAssertNotIdentical(decodedObject, token, .isCodable)
 
-    XCTAssertTrue(
-      coder.decodedObject["FBSDKAuthenticationTokenTokenStringCodingKey"] as? Any.Type == NSString.self,
-      "Initializing from a decoder should attempt to decode a String for the token string key"
-    )
-    XCTAssertTrue(
-      coder.decodedObject["FBSDKAuthenticationTokenNonceCodingKey"] as? Any.Type == NSString.self,
-      "Initializing from a decoder should attempt to decode a String for the nonce key"
-    )
-    XCTAssertTrue(
-      coder.decodedObject["FBSDKAuthenticationTokenGraphDomainCodingKey"] as? Any.Type == NSString.self,
-      "Initializing from a decoder should attempt to decode a String for the graph domain key"
-    )
+    // Test Properties
+    XCTAssertEqual(decodedObject.tokenString, token.tokenString, .isCodable)
+    XCTAssertEqual(decodedObject.nonce, token.nonce, .isCodable)
+    XCTAssertEqual(decodedObject.graphDomain, token.graphDomain, .isCodable)
   }
 
   func testTokenCacheIsNilByDefault() {
@@ -109,4 +76,12 @@ class AuthenticationTokenTests: XCTestCase {
       "Authentication token cache should be settable"
     )
   }
+}
+
+// swiftformat:disable extensionaccesscontrol
+
+// MARK: - Assumptions
+
+fileprivate extension String {
+  static let isCodable = "AuthenticationToken should be encodable and decodable"
 }

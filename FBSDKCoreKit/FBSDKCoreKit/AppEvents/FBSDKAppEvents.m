@@ -1,123 +1,58 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKAppEvents.h"
-#import "FBSDKAppEvents+EventLogging.h"
 #import "FBSDKAppEvents+Internal.h"
-
-#import <StoreKit/StoreKit.h>
-#import <UIKit/UIApplication.h>
 
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 #import <objc/runtime.h>
+#import <StoreKit/StoreKit.h>
+#import <UIKit/UIApplication.h>
 
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
+
+#import "FBSDKATEPublishing.h"
 #import "FBSDKAccessToken.h"
-#import "FBSDKAdvertiserIDProviding.h"
 #import "FBSDKAppEventName.h"
 #import "FBSDKAppEventName+Internal.h"
+#import "FBSDKAppEventParameterName+Internal.h"
 #import "FBSDKAppEventParameterProduct.h"
 #import "FBSDKAppEventParameterProduct+Internal.h"
 #import "FBSDKAppEventUserDataType.h"
-#import "FBSDKAppEventsConfiguration.h"
-#import "FBSDKAppEventsConfigurationProviding.h"
-#import "FBSDKAppEventsDeviceInfo.h"
-#import "FBSDKAppEventsParameterProcessing.h"
-#import "FBSDKAppEventsReporter.h"
-#import "FBSDKAppEventsState.h"
-#import "FBSDKAppEventsStatePersisting.h"
-#import "FBSDKAppEventsStateProviding.h"
-#import "FBSDKAppEventsUtility.h"
-#import "FBSDKAtePublisherCreating.h"
+#import "FBSDKAppEventsWKWebViewKeys.h"
+#import "FBSDKAppLinkURLCache.h"
 #import "FBSDKAtePublishing.h"
 #import "FBSDKConstants.h"
-#import "FBSDKDataPersisting.h"
 #import "FBSDKDynamicFrameworkLoader.h"
-#import "FBSDKEnableable.h"
-#import "FBSDKError+Internal.h"
-#import "FBSDKEventsProcessing.h"
 #import "FBSDKFeatureChecking.h"
-#import "FBSDKGateKeeperManaging.h"
 #import "FBSDKGraphRequestFactoryProtocol.h"
 #import "FBSDKInternalUtility+Internal.h"
 #import "FBSDKLogger.h"
 #import "FBSDKLogging.h"
-#import "FBSDKMetadataIndexing.h"
-#import "FBSDKPaymentObserving.h"
+#import "FBSDKScreenTitleObserver.h"
 #import "FBSDKServerConfiguration.h"
-#import "FBSDKServerConfigurationProviding.h"
-#import "FBSDKSettingsProtocol.h"
-#import "FBSDKSwizzling.h"
-#import "FBSDKTimeSpentRecordingCreating.h"
-#import "FBSDKUserDataPersisting.h"
 #import "FBSDKUtility.h"
 
 #if !TARGET_OS_TV
 
- #import <FBAEMKit/FBAEMKit.h>
-
  #import "FBSDKEventBindingManager.h"
- #import "FBSDKEventProcessing.h"
  #import "FBSDKHybridAppEventsScriptMessageHandler.h"
- #import "FBSDKIntegrityParametersProcessorProvider.h"
 
 #endif
 
-//
-// Public event parameter names
-//
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-FBSDKAppEventParameterName FBSDKAppEventParameterNameCurrency = @"fb_currency";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameRegistrationMethod = @"fb_registration_method";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameContentType = @"fb_content_type";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameContent = @"fb_content";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameContentID = @"fb_content_id";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameSearchString = @"fb_search_string";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameSuccess = @"fb_success";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameMaxRatingValue = @"fb_max_rating_value";
-FBSDKAppEventParameterName FBSDKAppEventParameterNamePaymentInfoAvailable = @"fb_payment_info_available";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameNumItems = @"fb_num_items";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameLevel = @"fb_level";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameDescription = @"fb_description";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameAdType = @"ad_type";
-FBSDKAppEventParameterName FBSDKAppEventParameterNameOrderID = @"fb_order_id";
-
-// Public Event Parameters
-NSString *const FBSDKAppEventParameterEventName = @"_eventName";
-NSString *const FBSDKAppEventParameterLogTime = @"_logTime";
-
-// Event Parameters internal to this file
-NSString *const FBSDKAppEventParameterShareTrayActivityName = @"fb_share_tray_activity";
-NSString *const FBSDKAppEventParameterShareTrayResult = @"fb_share_tray_result";
-NSString *const FBSDKAppEventParameterImplicitlyLogged = @"_implicitlyLogged";
-NSString *const FBSDKAppEventParameterInBackground = @"_inBackground";
-
-NSString *const FBSDKAppEventParameterLiveStreamingPrevStatus = @"live_streaming_prev_status";
-NSString *const FBSDKAppEventParameterLiveStreamingStatus = @"live_streaming_status";
-NSString *const FBSDKAppEventParameterLiveStreamingError = @"live_streaming_error";
-NSString *const FBSDKAppEventParameterLiveStreamingVideoID = @"live_streaming_video_id";
-NSString *const FBSDKAppEventParameterLiveStreamingMicEnabled = @"live_streaming_mic_enabled";
-NSString *const FBSDKAppEventParameterLiveStreamingCameraEnabled = @"live_streaming_camera_enabled";
+@protocol FBSDKCAPIReporter;
 
 // Event parameter values internal to this file
 
 NSString *const FBSDKGateKeeperAppEventsKillSwitch = @"app_events_killswitch";
-
-NSNotificationName const FBSDKAppEventsLoggingResultNotification = @"com.facebook.sdk:FBSDKAppEventsLoggingResultNotification";
 
 NSString *const FBSDKAppEventsOverrideAppIDBundleKey = @"FacebookLoggingOverrideAppID";
 
@@ -127,20 +62,9 @@ NSString *const FBSDKAppEventsOverrideAppIDBundleKey = @"FacebookLoggingOverride
 // Activities Endpoint Parameter
 static NSString *const FBSDKActivitesParameterPushDeviceToken = @"device_token";
 // Event Parameter
-static NSString *const FBSDKAppEventParameterPushCampaign = @"fb_push_campaign";
-static NSString *const FBSDKAppEventParameterPushAction = @"fb_push_action";
 // Payload Keys
 static NSString *const FBSDKAppEventsPushPayloadKey = @"fb_push_payload";
 static NSString *const FBSDKAppEventsPushPayloadCampaignKey = @"campaign";
-
-//
-// Augmentation of web browser constants
-//
-NSString *const FBSDKAppEventsWKWebViewMessagesPixelIDKey = @"pixelID";
-NSString *const FBSDKAppEventsWKWebViewMessagesHandlerKey = @"fbmqHandler";
-NSString *const FBSDKAppEventsWKWebViewMessagesEventKey = @"event";
-NSString *const FBSDKAppEventsWKWebViewMessagesParamsKey = @"params";
-NSString *const FBSDKAPPEventsWKWebViewMessagesProtocolKey = @"fbmq-0.1";
 
 #define NUM_LOG_EVENTS_TO_TRY_TO_FLUSH_AFTER 100
 #define FLUSH_PERIOD_IN_SECONDS 15
@@ -151,53 +75,76 @@ NSString *const FBSDKAPPEventsWKWebViewMessagesProtocolKey = @"fbmq-0.1";
 
 static FBSDKAppEvents *_shared = nil;
 static NSString *g_overrideAppID = nil;
-static BOOL g_explicitEventsLoggedYet;
-static Class<FBSDKGateKeeperManaging> g_gateKeeperManager;
-static Class<FBSDKAppEventsConfigurationProviding> g_appEventsConfigurationProvider;
-static id<FBSDKServerConfigurationProviding> g_serverConfigurationProvider;
-static id<FBSDKGraphRequestFactory> g_graphRequestFactory;
-static id<FBSDKFeatureChecking> g_featureChecker;
-static Class<FBSDKLogging> g_logger;
-static id<FBSDKSettings> g_settings;
-static id<FBSDKPaymentObserving> g_paymentObserver;
-static id<FBSDKAppEventsStatePersisting> g_appEventsStateStore;
-static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_eventDeactivationParameterProcessor;
-static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiveDataFilterParameterProcessor;
+static BOOL g_explicitEventsLoggedYet = NO;
+#if DEBUG
+static BOOL g_hasLoggedManualImplicitLoggingWarning = NO;
+#endif
 
 @interface FBSDKAppEvents ()
 
-@property (nullable, nonatomic) id<FBSDKDataPersisting> store;
-@property (nonatomic, assign) FBSDKAppEventsFlushBehavior flushBehavior;
 @property (nonatomic) UIApplicationState applicationState;
-@property (nonatomic, copy) NSString *pushNotificationsDeviceTokenString;
-@property (nonatomic, strong) dispatch_source_t flushTimer;
-@property (nonatomic, copy) NSString *userID;
-@property (nonatomic, strong) id<FBSDKAtePublishing> atePublisher;
-@property (nullable, nonatomic) Class<FBSDKSwizzling> swizzler;
-@property (nullable, nonatomic) id<FBSDKSourceApplicationTracking, FBSDKTimeSpentRecording> timeSpentRecorder;
-@property (nonatomic, strong) id<FBSDKAppEventsStateProviding> appEventsStateProvider;
-@property (nonatomic) id<FBSDKAdvertiserIDProviding> advertiserIDProvider;
-@property (nonatomic) id<FBSDKAtePublisherCreating> atePublisherFactory;
-@property (nonatomic) id<FBSDKUserDataPersisting> userDataStore;
+@property (nullable, nonatomic, copy) NSString *pushNotificationsDeviceTokenString;
+@property (nonatomic) dispatch_source_t flushTimer;
 @property (nonatomic) BOOL isConfigured;
-
-#if !TARGET_OS_TV
-@property (nonatomic) id<FBSDKEventProcessing, FBSDKIntegrityParametersProcessorProvider> onDeviceMLModelManager;
-@property (nonatomic) id<FBSDKMetadataIndexing> metadataIndexer;
-@property (nonatomic) id<FBSDKAppEventsReporter> skAdNetworkReporter;
-@property (nonatomic) FBSDKEventBindingManager *eventBindingManager;
-@property (nonatomic) Class<FBSDKEnableable> codelessIndexer;
-#endif
-
-@property (nonatomic, assign) BOOL disableTimer; // for testing only.
 
 @property (nonatomic) FBSDKServerConfiguration *serverConfiguration;
 @property (nonatomic) FBSDKAppEventsState *appEventsState;
-@property (nonatomic) BOOL isUnityInit;
+@property (nonatomic) BOOL _isUnityInitialized; // not publicly readable
+@property (nonatomic) BOOL isObservingApplicationStatePersistence;
+
+// Dependencies
+
+@property (nullable, nonatomic) Class<FBSDKGateKeeperManaging> gateKeeperManager;
+@property (nullable, nonatomic) id<FBSDKAppEventsConfigurationProviding> appEventsConfigurationProvider;
+@property (nullable, nonatomic) id<FBSDKServerConfigurationProviding> serverConfigurationProvider;
+@property (nullable, nonatomic) id<FBSDKGraphRequestFactory> graphRequestFactory;
+@property (nullable, nonatomic) id<FBSDKFeatureChecking> featureChecker;
+@property (nullable, nonatomic) id<FBSDKDataPersisting> primaryDataStore;
+@property (nullable, nonatomic) Class<FBSDKLogging> logger;
+@property (nullable, nonatomic) id<FBSDKSettings> settings;
+@property (nullable, nonatomic) id<FBSDKPaymentObserving> paymentObserver;
+@property (nullable, nonatomic) id<FBSDKSourceApplicationTracking, FBSDKTimeSpentRecording> timeSpentRecorder;
+@property (nullable, nonatomic) id<FBSDKAppEventsStatePersisting> appEventsStateStore;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> eventDeactivationParameterProcessor;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> restrictiveDataFilterParameterProcessor;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing> protectedModeManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> bannedParamsManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> stdParamEnforcementManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> macaRuleMatchingManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> vvpConfigManager;
+@property (nullable, nonatomic) id<FBSDKEventsProcessing> blocklistEventsManager;
+@property (nullable, nonatomic) id<FBSDKEventsProcessing> redactedEventsManager;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing> sensitiveParamsManager;
+@property (nullable, nonatomic) id<FBSDKATEPublisherCreating> atePublisherFactory;
+@property (nullable, nonatomic) id<FBSDKATEPublishing> atePublisher;
+@property (nullable, nonatomic) id<FBSDKAppEventsStateProviding> appEventsStateProvider;
+@property (nullable, nonatomic) id<FBSDKAdvertiserIDProviding> advertiserIDProvider;
+@property (nullable, nonatomic) id<FBSDKUserDataPersisting> userDataStore;
+@property (nullable, nonatomic) id<FBSDKAppEventDropDetermining, FBSDKAppEventParametersExtracting, FBSDKAppEventsUtility, FBSDKLoggingNotifying> appEventsUtility;
+@property (nullable, nonatomic) id<FBSDKInternalUtility> internalUtility;
+@property (nullable, nonatomic) id<FBSDKCAPIReporter> capiReporter;
+@property (nullable, nonatomic) id<FBSDKTransactionObserving> transactionObserver;
+@property (nullable, nonatomic) id<FBSDKIAPFailedTransactionLoggingCreating> failedTransactionLoggingFactory;
+@property (nullable, nonatomic) id<FBSDKIAPDedupeProcessing> iapDedupeProcessor;
+@property (nullable, nonatomic) id<FBSDKIAPTransactionCaching> iapTransactionCache;
+
+#if !TARGET_OS_TV
+@property (nullable, nonatomic) id<FBSDKEventProcessing, FBSDKIntegrityParametersProcessorProvider> onDeviceMLModelManager;
+@property (nullable, nonatomic) id<FBSDKMetadataIndexing> metadataIndexer;
+@property (nullable, nonatomic) id<FBSDKAppEventsReporter> skAdNetworkReporter;
+@property (nullable, nonatomic) id<FBSDKAppEventsReporter> skAdNetworkReporterV2;
+@property (nullable, nonatomic) Class<FBSDKCodelessIndexing> codelessIndexer;
+@property (nullable, nonatomic) Class<FBSDKSwizzling> swizzler;
+@property (nullable, nonatomic) FBSDKEventBindingManager *eventBindingManager;
+@property (nullable, nonatomic) Class<FBSDKAEMReporter> aemReporter;
+#endif
 
 @end
 
 @implementation FBSDKAppEvents
+{
+  NSString *_userID;
+}
 
 #pragma mark - Object Lifecycle
 
@@ -206,6 +153,7 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   if (self == FBSDKAppEvents.class) {
     g_overrideAppID = [[NSBundle.mainBundle objectForInfoDictionaryKey:FBSDKAppEventsOverrideAppIDBundleKey] copy];
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^(void) {
+      // Forces reading or creating of `anonymousID` used by this type
       [FBSDKBasicUtility anonymousID];
     });
   }
@@ -236,19 +184,33 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   return self;
 }
 
-- (void)startObservingApplicationLifecycleNotifications
+- (void)startObservingApplicationStatePersistenceNotifications
 {
+  // Idempotent: this may be called during synchronous init and again from
+  // startObservingApplicationLifecycleNotifications; register the persist observers only once.
+  if (self.isObservingApplicationStatePersistence) {
+    return;
+  }
+  self.isObservingApplicationStatePersistence = YES;
+
   [NSNotificationCenter.defaultCenter
    addObserver:self
-   selector:@selector(applicationMovingFromActiveStateOrTerminating)
+   selector:@selector(applicationMovingFromActiveState)
    name:UIApplicationWillResignActiveNotification
    object:NULL];
 
   [NSNotificationCenter.defaultCenter
    addObserver:self
-   selector:@selector(applicationMovingFromActiveStateOrTerminating)
+   selector:@selector(applicationTerminating)
    name:UIApplicationWillTerminateNotification
    object:NULL];
+}
+
+- (void)startObservingApplicationLifecycleNotifications
+{
+  // The persist-on-close observers are armed here too (idempotently) so a lone call still
+  // registers the full set; when init arms them earlier this is a no-op.
+  [self startObservingApplicationStatePersistenceNotifications];
 
   [NSNotificationCenter.defaultCenter
    addObserver:self
@@ -264,22 +226,9 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
 
 #pragma mark - Public Methods
 
-+ (void)logEvent:(FBSDKAppEventName)eventName
-{
-  [self.shared logEvent:eventName];
-}
-
 - (void)logEvent:(FBSDKAppEventName)eventName
 {
-  [self logEvent:eventName
-      parameters:@{}];
-}
-
-+ (void)logEvent:(FBSDKAppEventName)eventName
-      valueToSum:(double)valueToSum
-{
-  [self.shared logEvent:eventName
-             valueToSum:valueToSum];
+  [self logEvent:eventName parameters:@{}];
 }
 
 - (void)logEvent:(FBSDKAppEventName)eventName
@@ -290,92 +239,71 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
       parameters:@{}];
 }
 
-+ (void)logEvent:(FBSDKAppEventName)eventName
-      parameters:(nullable NSDictionary<NSString *, id> *)parameters
-{
-  [self.shared logEvent:eventName
-             parameters:parameters];
-}
-
 - (void)logEvent:(FBSDKAppEventName)eventName
-      parameters:(nullable NSDictionary<NSString *, id> *)parameters
+      parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
 {
-  [FBSDKAppEvents logEvent:eventName
-                valueToSum:nil
-                parameters:parameters
-               accessToken:nil];
-}
-
-+ (void)logEvent:(FBSDKAppEventName)eventName
-      valueToSum:(double)valueToSum
-      parameters:(nullable NSDictionary<NSString *, id> *)parameters
-{
-  [self.shared logEvent:eventName
-             valueToSum:valueToSum
-             parameters:parameters];
+  [self logEvent:eventName
+      valueToSum:nil
+      parameters:parameters
+     accessToken:nil];
 }
 
 - (void)logEvent:(FBSDKAppEventName)eventName
       valueToSum:(double)valueToSum
-      parameters:(nullable NSDictionary<NSString *, id> *)parameters
+      parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
 {
-  [FBSDKAppEvents logEvent:eventName
-                valueToSum:@(valueToSum)
-                parameters:parameters
-               accessToken:nil];
-}
-
-+ (void)logEvent:(FBSDKAppEventName)eventName
-      valueToSum:(NSNumber *)valueToSum
-      parameters:(nullable NSDictionary<NSString *, id> *)parameters
-     accessToken:(FBSDKAccessToken *)accessToken
-{
-  [self.shared logEvent:eventName
-             valueToSum:valueToSum
-             parameters:parameters
-            accessToken:accessToken];
+  [self logEvent:eventName
+      valueToSum:@(valueToSum)
+      parameters:parameters
+     accessToken:nil];
 }
 
 - (void)logEvent:(FBSDKAppEventName)eventName
       valueToSum:(NSNumber *)valueToSum
-      parameters:(nullable NSDictionary<NSString *, id> *)parameters
+      parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
      accessToken:(FBSDKAccessToken *)accessToken
 {
-  [self instanceLogEvent:eventName
-              valueToSum:valueToSum
-              parameters:parameters
-      isImplicitlyLogged:[parameters[FBSDKAppEventParameterImplicitlyLogged] boolValue]
-             accessToken:accessToken];
+  [self logEvent:eventName
+           valueToSum:valueToSum
+           parameters:parameters
+   isImplicitlyLogged:[parameters[FBSDKAppEventParameterNameImplicitlyLogged] boolValue]
+          accessToken:accessToken];
 }
 
-+ (void)logPurchase:(double)purchaseAmount
+- (void)logPurchase:(double)purchaseAmount
            currency:(NSString *)currency
 {
-  [FBSDKAppEvents logPurchase:purchaseAmount
-                     currency:currency
-                   parameters:@{}];
+  [self logPurchase:purchaseAmount
+           currency:currency
+         parameters:@{}];
 }
 
-+ (void)logPurchase:(double)purchaseAmount
+- (void)logPurchase:(double)purchaseAmount
            currency:(NSString *)currency
-         parameters:(nullable NSDictionary<NSString *, id> *)parameters
+         parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
 {
-  [FBSDKAppEvents logPurchase:purchaseAmount
-                     currency:currency
-                   parameters:parameters
-                  accessToken:nil];
+  [self logPurchase:purchaseAmount
+           currency:currency
+         parameters:parameters
+        accessToken:nil];
 }
 
-+ (void)logPurchase:(double)purchaseAmount
+-(void)logFailedStoreKit2Purchase:(NSString *)productID
+{
+  [[self.failedTransactionLoggingFactory createIAPFailedTransactionLogging] logFailedStoreKit2Purchase:productID];
+}
+
+- (void)logPurchase:(double)purchaseAmount
            currency:(NSString *)currency
-         parameters:(nullable NSDictionary<NSString *, id> *)parameters
+         parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
         accessToken:(nullable FBSDKAccessToken *)accessToken
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
+  [self checkForAutologgedPurchases];
 
   // A purchase event is just a regular logged event with a given event name
   // and treating the currency value as going into the parameters dictionary.
-  NSDictionary<NSString *, id> *newParameters;
+  NSDictionary<FBSDKAppEventParameterName, id> *newParameters;
   if (!parameters) {
     newParameters = @{ FBSDKAppEventParameterNameCurrency : currency };
   } else {
@@ -383,30 +311,24 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     [newParameters setValue:currency forKey:FBSDKAppEventParameterNameCurrency];
   }
 
-  [FBSDKAppEvents logEvent:FBSDKAppEventNamePurchased
-                valueToSum:@(purchaseAmount)
-                parameters:newParameters
-               accessToken:accessToken];
-
-  // Unless the behavior is set to only allow explicit flushing, we go ahead and flush, since purchase events
-  // are relatively rare and relatively high value and worth getting across on wire right away.
-  if ([FBSDKAppEvents flushBehavior] != FBSDKAppEventsFlushBehaviorExplicitOnly) {
-    [[FBSDKAppEvents shared] flushForReason:FBSDKAppEventsFlushReasonEagerlyFlushingEvent];
-  }
+  [self logEvent:FBSDKAppEventNamePurchased
+      valueToSum:@(purchaseAmount)
+      parameters:newParameters
+     accessToken:accessToken];
 }
 
 /*
  * Push Notifications Logging
  */
 
-+ (void)logPushNotificationOpen:(NSDictionary<NSString *, id> *)payload
+- (void)logPushNotificationOpen:(NSDictionary<NSString *, id> *)payload
 {
   [self logPushNotificationOpen:payload action:@""];
 }
 
-+ (void)logPushNotificationOpen:(NSDictionary<NSString *, id> *)payload action:(NSString *)action
+- (void)logPushNotificationOpen:(NSDictionary<NSString *, id> *)payload action:(NSString *)action
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
   NSDictionary<NSString *, id> *facebookPayload = payload[FBSDKAppEventsPushPayloadKey];
   if (!facebookPayload) {
@@ -414,22 +336,20 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }
   NSString *campaign = facebookPayload[FBSDKAppEventsPushPayloadCampaignKey];
   if (campaign.length == 0) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"Malformed payload specified for logging a push notification open."];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"Malformed payload specified for logging a push notification open."];
     return;
   }
 
-  NSMutableDictionary<NSString *, id> *parameters = [@{FBSDKAppEventParameterPushCampaign : campaign} mutableCopy];
+  NSMutableDictionary<FBSDKAppEventParameterName, id> *parameters = [@{FBSDKAppEventParameterNamePushCampaign : campaign} mutableCopy];
   if (action && action.length > 0) {
-    [FBSDKTypeUtility dictionary:parameters setObject:action forKey:FBSDKAppEventParameterPushAction];
+    [FBSDKTypeUtility dictionary:parameters setObject:action forKey:FBSDKAppEventParameterNamePushAction];
   }
+
   [self logEvent:FBSDKAppEventNamePushOpened parameters:parameters];
 }
 
-/*
- *  Uploads product catalog product item as an app event
- */
-+ (void)logProductItem:(NSString *)itemID
+- (void)logProductItem:(NSString *)itemID
           availability:(FBSDKProductAvailability)availability
              condition:(FBSDKProductCondition)condition
            description:(NSString *)description
@@ -441,41 +361,41 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
                   gtin:(nullable NSString *)gtin
                    mpn:(nullable NSString *)mpn
                  brand:(nullable NSString *)brand
-            parameters:(nullable NSDictionary<NSString *, id> *)parameters
+            parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
   if (itemID == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"itemID cannot be null"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"itemID cannot be null"];
     return;
   } else if (description == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"description cannot be null"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"description cannot be null"];
     return;
   } else if (imageLink == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"imageLink cannot be null"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"imageLink cannot be null"];
     return;
   } else if (link == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"link cannot be null"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"link cannot be null"];
     return;
   } else if (title == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"title cannot be null"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"title cannot be null"];
     return;
   } else if (currency == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"currency cannot be null"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"currency cannot be null"];
     return;
   } else if (gtin == nil && mpn == nil && brand == nil) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
-                        logEntry:@"Either gtin, mpn or brand is required"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                           logEntry:@"Either gtin, mpn or brand is required"];
     return;
   }
 
-  NSMutableDictionary<NSString *, id> *dict = [NSMutableDictionary dictionary];
+  NSMutableDictionary<FBSDKAppEventParameterName, id> *dict = [NSMutableDictionary dictionary];
   if (nil != parameters) {
     dict.valuesForKeysWithDictionary = parameters;
   }
@@ -528,23 +448,17 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     [FBSDKTypeUtility dictionary:dict setObject:brand forKey:FBSDKAppEventParameterProductBrand];
   }
 
-  [FBSDKAppEvents logEvent:FBSDKAppEventNameProductCatalogUpdate
-                parameters:dict];
-}
-
-+ (void)activateApp
-{
-  [self.shared activateApp];
+  [self logEvent:FBSDKAppEventNameProductCatalogUpdate
+      parameters:dict];
 }
 
 - (void)activateApp
 {
   [self validateConfiguration];
 
-  [FBSDKAppEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
+  [self.appEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
 
-  // Fetch app settings and register for transaction notifications only if app supports implicit purchase
-  // events
+  // Fetch app settings and register for transaction notifications only if app supports implicit purchase events
   [self publishInstall];
   [self fetchServerConfiguration:NULL];
 
@@ -554,126 +468,79 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   [self.timeSpentRecorder restore:YES];
 }
 
-+ (void)setPushNotificationsDeviceToken:(NSData *)deviceToken
+- (void)setPushNotificationsDeviceToken:(nullable NSData *)deviceToken
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
-  NSString *deviceTokenString = [FBSDKInternalUtility.sharedUtility hexadecimalStringFromData:deviceToken];
+  NSString *deviceTokenString = [self.internalUtility hexadecimalStringFromData:deviceToken];
   if (deviceTokenString) {
-    FBSDKAppEvents.pushNotificationsDeviceTokenString = deviceTokenString;
+    self.pushNotificationsDeviceTokenString = deviceTokenString;
   }
 }
 
-+ (void)setPushNotificationsDeviceTokenString:(NSString *)deviceTokenString
+- (void)setPushNotificationsDeviceTokenString:(nullable NSString *)deviceTokenString
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
   if (deviceTokenString == nil) {
-    [FBSDKAppEvents shared].pushNotificationsDeviceTokenString = nil;
+    _pushNotificationsDeviceTokenString = nil;
     return;
   }
 
-  if (![deviceTokenString isEqualToString:([FBSDKAppEvents shared].pushNotificationsDeviceTokenString)]) {
-    [FBSDKAppEvents shared].pushNotificationsDeviceTokenString = deviceTokenString;
+  NSString *currentToken = self.pushNotificationsDeviceTokenString ?: @"";
 
-    [FBSDKAppEvents logEvent:FBSDKAppEventNamePushTokenObtained];
+  if (![deviceTokenString isEqualToString:currentToken]) {
+    _pushNotificationsDeviceTokenString = deviceTokenString;
+
+    [self logEvent:FBSDKAppEventNamePushTokenObtained];
 
     // Unless the behavior is set to only allow explicit flushing, we go ahead and flush the event
-    if ([FBSDKAppEvents flushBehavior] != FBSDKAppEventsFlushBehaviorExplicitOnly) {
-      [[FBSDKAppEvents shared] flushForReason:FBSDKAppEventsFlushReasonEagerlyFlushingEvent];
+    if (self.flushBehavior != FBSDKAppEventsFlushBehaviorExplicitOnly) {
+      [self flushForReason:FBSDKAppEventsFlushReasonEagerlyFlushingEvent];
     }
   }
 }
 
-+ (FBSDKAppEventsFlushBehavior)flushBehavior
+- (nullable NSString *)loggingOverrideAppID
 {
-  return [FBSDKAppEvents shared].flushBehavior;
-}
-
-+ (void)setFlushBehavior:(FBSDKAppEventsFlushBehavior)flushBehavior
-{
-  [self.shared validateConfiguration];
-
-  self.shared.flushBehavior = flushBehavior;
-}
-
-+ (NSString *)loggingOverrideAppID
-{
-  return g_overrideAppID;
-}
-
-+ (void)setLoggingOverrideAppID:(NSString *)appID
-{
-  [self.shared validateConfiguration];
-
-  if (![g_overrideAppID isEqualToString:appID]) {
-    FBSDKConditionalLog(
-      !g_explicitEventsLoggedYet,
-      FBSDKLoggingBehaviorDeveloperErrors,
-      @"[FBSDKAppEvents setLoggingOverrideAppID:] should only be called prior to any events being logged."
-    );
-    g_overrideAppID = appID;
+  @synchronized (self) {
+    return g_overrideAppID;
   }
 }
 
-+ (void)flush
+- (void)setLoggingOverrideAppID:(nullable NSString *)appID
 {
-  [self.shared validateConfiguration];
-  [self.shared flushForReason:FBSDKAppEventsFlushReasonExplicit];
+  [self validateConfiguration];
+
+
+  if (![[self loggingOverrideAppID] isEqualToString:appID]) {
+    if (g_explicitEventsLoggedYet) {
+      [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors
+                             logEntry:@"AppEvents.shared.loggingOverrideAppID should only be set prior to any events being logged."];
+    }
+    @synchronized (self) {
+      g_overrideAppID = appID;
+    }
+  }
 }
 
-+ (void)setUserID:(NSString *)userID
+- (void)flush
 {
-  self.shared.userID = userID;
+  [self validateConfiguration];
+  [self flushForReason:FBSDKAppEventsFlushReasonExplicit];
 }
 
-- (void)setUserID:(NSString *)userID
+- (nullable NSString *)userID
+{
+  [self validateConfiguration];
+  return [_userID copy];
+}
+
+- (void)setUserID:(nullable NSString *)userID
 {
   [self validateConfiguration];
   _userID = [userID copy];
-  [self.store setObject:userID forKey:USER_ID_USER_DEFAULTS_KEY];
-}
-
-+ (void)clearUserID
-{
-  [self.shared clearUserID];
-}
-
-- (void)clearUserID
-{
-  [self validateConfiguration];
-
-  self.userID = nil;
-}
-
-+ (NSString *)userID
-{
-  [self.shared validateConfiguration];
-
-  return self.shared.userID;
-}
-
-+ (void)setUserEmail:(nullable NSString *)email
-           firstName:(nullable NSString *)firstName
-            lastName:(nullable NSString *)lastName
-               phone:(nullable NSString *)phone
-         dateOfBirth:(nullable NSString *)dateOfBirth
-              gender:(nullable NSString *)gender
-                city:(nullable NSString *)city
-               state:(nullable NSString *)state
-                 zip:(nullable NSString *)zip
-             country:(nullable NSString *)country
-{
-  [self.shared setUserEmail:email
-                  firstName:firstName
-                   lastName:lastName
-                      phone:phone
-                dateOfBirth:dateOfBirth
-                     gender:gender
-                       city:city
-                      state:state
-                        zip:zip
-                    country:country];
+  [self.primaryDataStore fb_setObject:userID forKey:USER_ID_USER_DEFAULTS_KEY];
 }
 
 - (void)setUserEmail:(nullable NSString *)email
@@ -688,21 +555,15 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
              country:(nullable NSString *)country
 {
   [self.userDataStore setUserEmail:email
-                         firstName:firstName
-                          lastName:lastName
-                             phone:phone
-                       dateOfBirth:dateOfBirth
-                            gender:gender
-                              city:city
-                             state:state
-                               zip:zip
-                           country:country
-                        externalId:nil];
-}
-
-+ (NSString *)getUserData
-{
-  return [self.shared getUserData];
+           firstName:firstName
+            lastName:lastName
+               phone:phone
+         dateOfBirth:dateOfBirth
+              gender:gender
+                city:city
+               state:state
+                 zip:zip
+             country:country];
 }
 
 - (nullable NSString *)getUserData
@@ -710,20 +571,9 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   return [self.userDataStore getUserData];
 }
 
-+ (void)clearUserData
-{
-  [self.shared clearUserData];
-}
-
 - (void)clearUserData
 {
   [self.userDataStore clearUserData];
-}
-
-+ (void)setUserData:(nullable NSString *)data
-            forType:(FBSDKAppEventUserDataType)type
-{
-  [self.shared setUserData:data forType:type];
 }
 
 - (void)setUserData:(nullable NSString *)data
@@ -732,74 +582,71 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   [self.userDataStore setUserData:data forType:type];
 }
 
-+ (void)clearUserDataForType:(FBSDKAppEventUserDataType)type
-{
-  [self.shared clearUserDataForType:type];
-}
-
 - (void)clearUserDataForType:(FBSDKAppEventUserDataType)type
 {
   [self.userDataStore clearUserDataForType:type];
 }
 
-+ (NSString *)anonymousID
+- (NSString *)anonymousID
 {
   return [FBSDKBasicUtility anonymousID];
 }
 
 #if !TARGET_OS_TV
-+ (void)augmentHybridWKWebView:(WKWebView *)webView
+
+- (void)augmentHybridWebView:(WKWebView *)webView
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
   if ([webView isKindOfClass:WKWebView.class]) {
     if (WKUserScript.class != nil) {
       WKUserContentController *controller = webView.configuration.userContentController;
-      FBSDKHybridAppEventsScriptMessageHandler *scriptHandler = [FBSDKHybridAppEventsScriptMessageHandler new];
+      FBSDKHybridAppEventsScriptMessageHandler *scriptHandler = [[FBSDKHybridAppEventsScriptMessageHandler alloc] initWithEventLogger:self
+                                                                                                                      loggingNotifier:self.appEventsUtility];
       [controller addScriptMessageHandler:scriptHandler name:FBSDKAppEventsWKWebViewMessagesHandlerKey];
 
       NSString *js = [NSString stringWithFormat:@"window.fbmq_%@={'sendEvent': function(pixel_id,event_name,custom_data){var msg={\"%@\":pixel_id, \"%@\":event_name,\"%@\":custom_data};window.webkit.messageHandlers[\"%@\"].postMessage(msg);}, 'getProtocol':function(){return \"%@\";}}",
-                      [[self shared] appID],
+                      self.appID,
                       FBSDKAppEventsWKWebViewMessagesPixelIDKey,
                       FBSDKAppEventsWKWebViewMessagesEventKey,
                       FBSDKAppEventsWKWebViewMessagesParamsKey,
                       FBSDKAppEventsWKWebViewMessagesHandlerKey,
-                      FBSDKAPPEventsWKWebViewMessagesProtocolKey
+                      FBSDKAppEventsWKWebViewMessagesProtocolKey
       ];
 
       [controller addUserScript:[[WKUserScript.class alloc] initWithSource:js injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]];
     }
   } else {
-    [FBSDKAppEventsUtility logAndNotify:@"You must call augmentHybridWKWebView with WebKit linked to your project and a WKWebView instance"];
+    [self.appEventsUtility logAndNotify:@"You must call augmentHybridWebView with WebKit linked to your project and a WKWebView instance"];
   }
 }
 
 #endif
 
-+ (void)setIsUnityInit:(BOOL)isUnityInit
+- (void)setIsUnityInitialized:(BOOL)isUnityInitialized
 {
-  [FBSDKAppEvents shared]->_isUnityInit = isUnityInit;
+  self._isUnityInitialized = isUnityInitialized;
 }
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-+ (void)sendEventBindingsToUnity
+- (void)sendEventBindingsToUnity
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
   // Send event bindings to Unity only Unity is initialized
-  if ([FBSDKAppEvents shared]->_isUnityInit
-      && [FBSDKAppEvents shared]->_serverConfiguration
-      && [FBSDKTypeUtility isValidJSONObject:[FBSDKAppEvents shared]->_serverConfiguration.eventBindings]
+  if (self._isUnityInitialized
+      && self.serverConfiguration
+      && [NSJSONSerialization isValidJSONObject:self.serverConfiguration.eventBindings]
   ) {
-    NSData *jsonData = [FBSDKTypeUtility dataWithJSONObject:[FBSDKAppEvents shared]->_serverConfiguration.eventBindings ?: @""
+    NSData *jsonData = [FBSDKTypeUtility dataWithJSONObject:self.serverConfiguration.eventBindings ?: @""
                                                     options:0
                                                       error:nil];
     NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
     Class classFBUnityUtility = objc_lookUpClass(FBUnityUtilityClassName);
-    SEL updateBindingSelector = NSSelectorFromString(FBUnityUtilityUpdateBindingsSelector);
-    if ([classFBUnityUtility respondsToSelector:updateBindingSelector]) {
-      [classFBUnityUtility performSelector:updateBindingSelector withObject:jsonString];
+    SEL updateBindingsSelector = NSSelectorFromString(FBUnityUtilityUpdateBindingsSelector);
+    if ([classFBUnityUtility respondsToSelector:updateBindingsSelector]) {
+      [classFBUnityUtility performSelector:updateBindingsSelector withObject:jsonString];
     }
   }
 }
@@ -808,99 +655,102 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
 
 #pragma mark - Internal Methods
 
-- (void)   configureWithGateKeeperManager:(Class<FBSDKGateKeeperManaging>)gateKeeperManager
-           appEventsConfigurationProvider:(Class<FBSDKAppEventsConfigurationProviding>)appEventsConfigurationProvider
-              serverConfigurationProvider:(id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
-                      graphRequestFactory:(id<FBSDKGraphRequestFactory>)provider
-                           featureChecker:(id<FBSDKFeatureChecking>)featureChecker
-                                    store:(id<FBSDKDataPersisting>)store
-                                   logger:(Class<FBSDKLogging>)logger
-                                 settings:(id<FBSDKSettings>)settings
-                          paymentObserver:(id<FBSDKPaymentObserving>)paymentObserver
-                 timeSpentRecorderFactory:(id<FBSDKTimeSpentRecordingCreating>)timeSpentRecorderFactory
-                      appEventsStateStore:(id<FBSDKAppEventsStatePersisting>)appEventsStateStore
-      eventDeactivationParameterProcessor:(id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing>)eventDeactivationParameterProcessor
-  restrictiveDataFilterParameterProcessor:(id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing>)restrictiveDataFilterParameterProcessor
-                      atePublisherFactory:(id<FBSDKAtePublisherCreating>)atePublisherFactory
-                   appEventsStateProvider:(id<FBSDKAppEventsStateProviding>)appEventsStateProvider
-                                 swizzler:(Class<FBSDKSwizzling>)swizzler
-                     advertiserIDProvider:(id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
-                            userDataStore:(id<FBSDKUserDataPersisting>)userDataStore
+- (void)   configureWithGateKeeperManager:(nonnull Class<FBSDKGateKeeperManaging>)gateKeeperManager
+           appEventsConfigurationProvider:(nonnull id<FBSDKAppEventsConfigurationProviding>)appEventsConfigurationProvider
+              serverConfigurationProvider:(nonnull id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
+                      graphRequestFactory:(nonnull id<FBSDKGraphRequestFactory>)graphRequestFactory
+                           featureChecker:(nonnull id<FBSDKFeatureChecking>)featureChecker
+                         primaryDataStore:(nonnull id<FBSDKDataPersisting>)primaryDataStore
+                                   logger:(nonnull Class<FBSDKLogging>)logger
+                                 settings:(nonnull id<FBSDKSettings>)settings
+                          paymentObserver:(nonnull id<FBSDKPaymentObserving>)paymentObserver
+                        timeSpentRecorder:(nonnull id<FBSDKSourceApplicationTracking, FBSDKTimeSpentRecording>)timeSpentRecorder
+                      appEventsStateStore:(nonnull id<FBSDKAppEventsStatePersisting>)appEventsStateStore
+      eventDeactivationParameterProcessor:(nonnull id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing>)eventDeactivationParameterProcessor
+  restrictiveDataFilterParameterProcessor:(nonnull id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing>)restrictiveDataFilterParameterProcessor
+                      atePublisherFactory:(nonnull id<FBSDKATEPublisherCreating>)atePublisherFactory
+                   appEventsStateProvider:(nonnull id<FBSDKAppEventsStateProviding>)appEventsStateProvider
+                     advertiserIDProvider:(nonnull id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
+                            userDataStore:(nonnull id<FBSDKUserDataPersisting>)userDataStore
+                         appEventsUtility:(nonnull id<FBSDKAppEventDropDetermining, FBSDKAppEventParametersExtracting, FBSDKAppEventsUtility, FBSDKLoggingNotifying>)appEventsUtility
+                          internalUtility:(nonnull id<FBSDKInternalUtility>)internalUtility
+                             capiReporter:(id<FBSDKCAPIReporter>)capiReporter
+                     protectedModeManager:(nonnull id<FBSDKAppEventsParameterProcessing>)protectedModeManager
+                      bannedParamsManager:(nonnull id<FBSDKMACARuleMatching>)bannedParamsManager
+               stdParamEnforcementManager:(nonnull id<FBSDKMACARuleMatching>)stdParamEnforcementManager
+                 macaRuleMatchingManager:(nonnull id<FBSDKMACARuleMatching>)macaRuleMatchingManager
+                        vvpConfigManager:(nonnull id<FBSDKMACARuleMatching>)vvpConfigManager
+                   blocklistEventsManager:(nonnull id<FBSDKEventsProcessing>)blocklistEventsManager
+                    redactedEventsManager:(nonnull id<FBSDKEventsProcessing>)redactedEventsManager
+                   sensitiveParamsManager:(nonnull id<FBSDKAppEventsParameterProcessing>)sensitiveParamsManager
+                      transactionObserver:(nonnull id<FBSDKTransactionObserving>)transactionObserver
+          failedTransactionLoggingFactory:(nonnull id<FBSDKIAPFailedTransactionLoggingCreating>)failedTransactionLoggingFactory
+                       iapDedupeProcessor:(nonnull id<FBSDKIAPDedupeProcessing>)iapDedupeProcessor
+                      iapTransactionCache:(nonnull id<FBSDKIAPTransactionCaching>)iapTransactionCache
 {
-  FBSDKAppEvents.appEventsConfigurationProvider = appEventsConfigurationProvider;
-  FBSDKAppEvents.serverConfigurationProvider = serverConfigurationProvider;
-  g_gateKeeperManager = gateKeeperManager;
-  g_logger = logger;
-  FBSDKAppEvents.graphRequestFactory = provider;
-  FBSDKAppEvents.featureChecker = featureChecker;
-  g_settings = settings;
-  g_paymentObserver = paymentObserver;
-  g_appEventsStateStore = appEventsStateStore;
-  g_eventDeactivationParameterProcessor = eventDeactivationParameterProcessor;
-  g_restrictiveDataFilterParameterProcessor = restrictiveDataFilterParameterProcessor;
-  self.swizzler = swizzler;
-  self.store = store;
+  self.gateKeeperManager = gateKeeperManager;
+  self.appEventsConfigurationProvider = appEventsConfigurationProvider;
+  self.serverConfigurationProvider = serverConfigurationProvider;
+  self.graphRequestFactory = graphRequestFactory;
+  self.featureChecker = featureChecker;
+  self.primaryDataStore = primaryDataStore;
+  self.logger = logger;
+  self.settings = settings; // This must be set before using/changing `userID`
+  self.paymentObserver = paymentObserver;
+  self.timeSpentRecorder = timeSpentRecorder;
+  self.appEventsStateStore = appEventsStateStore;
+  self.eventDeactivationParameterProcessor = eventDeactivationParameterProcessor;
+  self.restrictiveDataFilterParameterProcessor = restrictiveDataFilterParameterProcessor;
   self.atePublisherFactory = atePublisherFactory;
-  self.atePublisher = [self.atePublisherFactory createPublisherWithAppID:self.appID];
-  self.timeSpentRecorder = [timeSpentRecorderFactory createTimeSpentRecorder];
   self.appEventsStateProvider = appEventsStateProvider;
   self.advertiserIDProvider = advertiserIDProvider;
   self.userDataStore = userDataStore;
+  self.appEventsUtility = appEventsUtility;
+  self.internalUtility = internalUtility;
+  self.capiReporter = capiReporter;
+  self.protectedModeManager = protectedModeManager;
+  self.bannedParamsManager = bannedParamsManager;
+  self.stdParamEnforcementManager = stdParamEnforcementManager;
+  self.macaRuleMatchingManager = macaRuleMatchingManager;
+  self.vvpConfigManager = vvpConfigManager;
+  self.blocklistEventsManager = blocklistEventsManager;
+  self.redactedEventsManager = redactedEventsManager;
+  self.sensitiveParamsManager = sensitiveParamsManager;
+  self.transactionObserver = transactionObserver;
+  self.failedTransactionLoggingFactory = failedTransactionLoggingFactory;
+  self.iapDedupeProcessor = iapDedupeProcessor;
+  self.iapTransactionCache = iapTransactionCache;
+
+  NSString *appID = self.appID;
+  if (appID) {
+    self.atePublisher = [atePublisherFactory createPublisherWithAppID:appID];
+  }
 
   self.isConfigured = YES;
 
-  self.userID = [store stringForKey:USER_ID_USER_DEFAULTS_KEY];
-}
-
-+ (void)setFeatureChecker:(id<FBSDKFeatureChecking>)checker
-{
-  if (g_featureChecker != checker) {
-    g_featureChecker = checker;
-  }
-}
-
-+ (void)setGraphRequestFactory:(id<FBSDKGraphRequestFactory>)provider
-{
-  if (g_graphRequestFactory != provider) {
-    g_graphRequestFactory = provider;
-  }
-}
-
-+ (void)setAppEventsConfigurationProvider:(Class<FBSDKAppEventsConfigurationProviding>)provider
-{
-  if (g_appEventsConfigurationProvider != provider) {
-    g_appEventsConfigurationProvider = provider;
-  }
-}
-
-+ (void)setServerConfigurationProvider:(id<FBSDKServerConfigurationProviding>)provider
-{
-  if (g_serverConfigurationProvider != provider) {
-    g_serverConfigurationProvider = provider;
-  }
+  self.userID = [primaryDataStore fb_stringForKey:USER_ID_USER_DEFAULTS_KEY];
 }
 
 #if !TARGET_OS_TV
 
-- (void)configureNonTVComponentsWithOnDeviceMLModelManager:(id<FBSDKEventProcessing, FBSDKIntegrityParametersProcessorProvider>)modelManager
-                                           metadataIndexer:(id<FBSDKMetadataIndexing>)metadataIndexer
+- (void)configureNonTVComponentsWithOnDeviceMLModelManager:(nonnull id<FBSDKEventProcessing, FBSDKIntegrityParametersProcessorProvider>)modelManager
+                                           metadataIndexer:(nonnull id<FBSDKMetadataIndexing>)metadataIndexer
                                        skAdNetworkReporter:(nullable id<FBSDKAppEventsReporter>)skAdNetworkReporter
-                                           codelessIndexer:(Class<FBSDKEnableable>)codelessIndexer;
+                                       skAdNetworkReporterV2:(nullable id<FBSDKAppEventsReporter>)skAdNetworkReporterV2
+                                           codelessIndexer:(nonnull Class<FBSDKCodelessIndexing>)codelessIndexer
+                                                  swizzler:(nonnull Class<FBSDKSwizzling>)swizzler
+                                               aemReporter:(nonnull Class<FBSDKAEMReporter>)aemReporter
 {
   self.onDeviceMLModelManager = modelManager;
   self.metadataIndexer = metadataIndexer;
   self.skAdNetworkReporter = skAdNetworkReporter;
+  self.skAdNetworkReporterV2 = skAdNetworkReporterV2;
   self.codelessIndexer = codelessIndexer;
+  self.swizzler = swizzler;
+  self.aemReporter = aemReporter;
 }
 
 #endif
-
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-{
-  [self.shared logInternalEvent:eventName
-             isImplicitlyLogged:isImplicitlyLogged];
-}
 
 - (void)logInternalEvent:(FBSDKAppEventName)eventName
       isImplicitlyLogged:(BOOL)isImplicitlyLogged
@@ -908,15 +758,6 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   [self logInternalEvent:eventName
               parameters:@{}
       isImplicitlyLogged:isImplicitlyLogged];
-}
-
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              valueToSum:(double)valueToSum
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-{
-  [self.shared logInternalEvent:eventName
-                     valueToSum:valueToSum
-             isImplicitlyLogged:isImplicitlyLogged];
 }
 
 - (void)logInternalEvent:(FBSDKAppEventName)eventName
@@ -929,17 +770,8 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
       isImplicitlyLogged:isImplicitlyLogged];
 }
 
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-{
-  [self.shared logInternalEvent:eventName
-                     parameters:parameters
-             isImplicitlyLogged:isImplicitlyLogged];
-}
-
 - (void)logInternalEvent:(FBSDKAppEventName)eventName
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
+              parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
       isImplicitlyLogged:(BOOL)isImplicitlyLogged
 {
   [self logInternalEvent:eventName
@@ -949,19 +781,8 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
              accessToken:nil];
 }
 
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-             accessToken:(FBSDKAccessToken *)accessToken
-{
-  [self.shared logInternalEvent:eventName
-                     parameters:parameters
-             isImplicitlyLogged:isImplicitlyLogged
-                    accessToken:accessToken];
-}
-
 - (void)logInternalEvent:(FBSDKAppEventName)eventName
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
+              parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
       isImplicitlyLogged:(BOOL)isImplicitlyLogged
              accessToken:(FBSDKAccessToken *)accessToken
 {
@@ -972,20 +793,9 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
              accessToken:accessToken];
 }
 
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              valueToSum:(double)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-{
-  [self.shared logInternalEvent:eventName
-                     valueToSum:valueToSum
-                     parameters:parameters
-             isImplicitlyLogged:isImplicitlyLogged];
-}
-
 - (void)logInternalEvent:(FBSDKAppEventName)eventName
               valueToSum:(double)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
+              parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
       isImplicitlyLogged:(BOOL)isImplicitlyLogged
 {
   [self logInternalEvent:eventName
@@ -995,56 +805,31 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
              accessToken:nil];
 }
 
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-             accessToken:(FBSDKAccessToken *)accessToken
-{
-  [self.shared logInternalEvent:eventName
-                     valueToSum:valueToSum
-                     parameters:parameters
-             isImplicitlyLogged:isImplicitlyLogged
-                    accessToken:accessToken];
-}
-
 - (void)logInternalEvent:(FBSDKAppEventName)eventName
               valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
+              parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
       isImplicitlyLogged:(BOOL)isImplicitlyLogged
              accessToken:(FBSDKAccessToken *)accessToken
 {
-  if ([g_settings isAutoLogAppEventsEnabled]) {
-    [self instanceLogEvent:eventName
-                valueToSum:valueToSum
-                parameters:parameters
-        isImplicitlyLogged:isImplicitlyLogged
-               accessToken:accessToken];
+  if ([self.settings isAutoLogAppEventsEnabled]) {
+    [self logEvent:eventName
+             valueToSum:valueToSum
+             parameters:parameters
+     isImplicitlyLogged:isImplicitlyLogged
+            accessToken:accessToken];
   }
-}
-
-+ (void)logImplicitEvent:(FBSDKAppEventName)eventName
-              valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-             accessToken:(FBSDKAccessToken *)accessToken
-{
-  [self.shared instanceLogEvent:eventName
-                     valueToSum:valueToSum
-                     parameters:parameters
-             isImplicitlyLogged:YES
-                    accessToken:accessToken];
 }
 
 - (void)logImplicitEvent:(FBSDKAppEventName)eventName
               valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
+              parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
              accessToken:(FBSDKAccessToken *)accessToken
 {
-  [self instanceLogEvent:eventName
-              valueToSum:valueToSum
-              parameters:parameters
-      isImplicitlyLogged:YES
-             accessToken:accessToken];
+  [self logEvent:eventName
+           valueToSum:valueToSum
+           parameters:parameters
+   isImplicitlyLogged:YES
+          accessToken:accessToken];
 }
 
 + (FBSDKAppEvents *)shared
@@ -1062,18 +847,18 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   // - most consistent code path for all threads.
   // - allow locks being held by caller to be released prior to actual flushing work being done.
   @synchronized(self) {
-    if (!_appEventsState) {
+    if (!self.appEventsState) {
       return;
     }
-    FBSDKAppEventsState *copy = [_appEventsState copy];
-    _appEventsState = [self.appEventsStateProvider createStateWithToken:copy.tokenString
-                                                                  appID:copy.appID];
+    FBSDKAppEventsState *copy = [self.appEventsState copy];
+    self.appEventsState = [self.appEventsStateProvider createStateWithToken:copy.tokenString
+                                                                      appID:copy.appID];
 
     dispatch_block_t block = ^{
       [self flushOnMainQueue:copy forReason:flushReason];
     };
 
-  #if DEBUG && FBTEST
+  #if DEBUG
     block();
   #else
     dispatch_async(dispatch_get_main_queue(), block);
@@ -1099,44 +884,53 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
 }
 
 #pragma mark - Private Methods
-- (NSString *)appID
+- (nullable NSString *)appID
 {
-  return [FBSDKAppEvents loggingOverrideAppID] ?: [g_settings appID];
+  return self.loggingOverrideAppID ?: [self.settings appID];
 }
 
 - (void)publishInstall
 {
   NSString *appID = [self appID];
   if (appID.length == 0) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors logEntry:@"Missing [FBSDKAppEvents appID] for [FBSDKAppEvents publishInstall:]"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors logEntry:@"Missing [FBSDKAppEvents appID] for [FBSDKAppEvents publishInstall:]"];
     return;
   }
-  NSString *lastAttributionPingString = [NSString stringWithFormat:@"com.facebook.sdk:lastAttributionPing%@", appID];
-  if ([self.store objectForKey:lastAttributionPingString]) {
-    return;
-  }
-  [self fetchServerConfiguration:^{
-    if ([FBSDKAppEventsUtility shouldDropAppEvent]) {
+  fb_dispatch_on_main_thread(^{
+    NSString *lastAttributionPingString = [NSString stringWithFormat:@"com.facebook.sdk:lastAttributionPing%@", appID];
+    if ([self.primaryDataStore fb_objectForKey:lastAttributionPingString]) {
       return;
     }
-    NSMutableDictionary<NSString *, id> *params = [FBSDKAppEventsUtility activityParametersDictionaryForEvent:@"MOBILE_APP_INSTALL"
-                                                                                    shouldAccessAdvertisingID:self->_serverConfiguration.isAdvertisingIDEnabled];
-    [self appendInstallTimestamp:params];
-    NSString *path = [NSString stringWithFormat:@"%@/activities", appID];
-    id<FBSDKGraphRequest> request = [g_graphRequestFactory createGraphRequestWithGraphPath:path
-                                                                                parameters:params
-                                                                               tokenString:nil
-                                                                                HTTPMethod:FBSDKHTTPMethodPOST
-                                                                                     flags:FBSDKGraphRequestFlagDoNotInvalidateTokenOnError | FBSDKGraphRequestFlagDisableErrorRecovery];
-    __block id<FBSDKDataPersisting> weakStore = self.store;
-    [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
-      if (!error) {
-        [weakStore setObject:[NSDate date] forKey:lastAttributionPingString];
-        NSString *lastInstallResponseKey = [NSString stringWithFormat:@"com.facebook.sdk:lastInstallResponse%@", appID];
-        [weakStore setObject:result forKey:lastInstallResponseKey];
+    [self.primaryDataStore fb_setObject:[NSDate date] forKey:lastAttributionPingString];
+    [self fetchServerConfiguration:^{
+      if ([self.appEventsUtility shouldDropAppEvents] || [self.gateKeeperManager boolForKey:FBSDKGateKeeperAppEventsKillSwitch defaultValue:NO]) {
+        return;
       }
+      NSMutableDictionary<NSString *, NSString *> *params = [self.appEventsUtility activityParametersDictionaryForEvent:@"MOBILE_APP_INSTALL"
+                                                                                              shouldAccessAdvertisingID:self.serverConfiguration.isAdvertisingIDEnabled
+                                                                                                                 userID:self.userID
+                                                                                                               userData:[self getUserData]];
+      [self appendInstallTimestamp:params];
+      [self.capiReporter recordEvent:params];
+      NSString *path = [NSString stringWithFormat:@"%@/activities", appID];
+      id<FBSDKGraphRequest> request = [self.graphRequestFactory createGraphRequestWithGraphPath:path
+                                                                                     parameters:params
+                                                                                    tokenString:nil
+                                                                                     HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                          flags:FBSDKGraphRequestFlagDoNotInvalidateTokenOnError | FBSDKGraphRequestFlagDisableErrorRecovery
+                                                                                   forAppEvents:YES
+                                                              useAlternativeDefaultDomainPrefix:NO];
+      __block id<FBSDKDataPersisting> weakStore = self.primaryDataStore;
+      [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
+        if (!error) {
+          NSString *lastInstallResponseKey = [NSString stringWithFormat:@"com.facebook.sdk:lastInstallResponse%@", appID];
+          [weakStore fb_setObject:result forKey:lastInstallResponseKey];
+        } else {
+          [weakStore fb_removeObjectForKey:lastAttributionPingString];
+        }
+      }];
     }];
-  }];
+  });
 }
 
 - (void)publishATE
@@ -1147,45 +941,48 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
 
   self.atePublisher = self.atePublisher ?: [self.atePublisherFactory createPublisherWithAppID:self.appID];
 
-#if FBTEST
+#if DEBUG
   [self.atePublisher publishATE];
 #else
   __weak FBSDKAppEvents *weakSelf = self;
-  fb_dispatch_on_default_thread(^(void) {
+  fb_dispatch_on_main_thread(^(void) {
     [weakSelf.atePublisher publishATE];
   });
 #endif
 }
 
-- (void)appendInstallTimestamp:(NSMutableDictionary<NSString *, id> *)parameters
+- (void)appendInstallTimestamp:(nonnull NSMutableDictionary<NSString *, NSString *> *)parameters
 {
-  if (@available(iOS 14.0, *)) {
-    if ([g_settings isSetATETimeExceedsInstallTime]) {
-      NSDate *setAteTimestamp = g_settings.advertiserTrackingEnabledTimestamp;
-      [FBSDKTypeUtility dictionary:parameters setObject:@([FBSDKAppEventsUtility convertToUnixTime:setAteTimestamp]) forKey:@"install_timestamp"];
-    } else {
-      NSDate *installTimestamp = g_settings.installTimestamp;
-      [FBSDKTypeUtility dictionary:parameters setObject:@([FBSDKAppEventsUtility convertToUnixTime:installTimestamp]) forKey:@"install_timestamp"];
-    }
+  if (self.settings.isATETimeSufficientlyDelayed) {
+    NSDate *ateTimestamp = self.settings.advertiserTrackingEnabledTimestamp;
+    [FBSDKTypeUtility dictionary:parameters setObject:@([self.appEventsUtility convertToUnixTime:ateTimestamp]) forKey:@"install_timestamp"];
+  } else {
+    NSDate *installTimestamp = self.settings.installTimestamp;
+    [FBSDKTypeUtility dictionary:parameters setObject:@([self.appEventsUtility convertToUnixTime:installTimestamp]) forKey:@"install_timestamp"];
   }
 }
 
 #if !TARGET_OS_TV
 - (void)enableCodelessEvents
 {
-  if (_serverConfiguration.isCodelessEventsEnabled) {
+  if (!self.swizzler) {
+    return;
+  }
+
+  if (self.serverConfiguration.isCodelessEventsEnabled) {
     [self.codelessIndexer enable];
 
-    if (!_eventBindingManager) {
-      _eventBindingManager = [FBSDKEventBindingManager new];
+    if (!self.eventBindingManager) {
+      self.eventBindingManager = [[FBSDKEventBindingManager alloc] initWithSwizzler:self.swizzler
+                                                                        eventLogger:self];
     }
 
-    if ([FBSDKInternalUtility.sharedUtility isUnity]) {
-      [FBSDKAppEvents sendEventBindingsToUnity];
+    if (self.internalUtility.isUnity) {
+      [self sendEventBindingsToUnity];
     } else {
       FBSDKEventBindingManager *manager = [[FBSDKEventBindingManager alloc] initWithSwizzler:self.swizzler
                                                                                  eventLogger:self];
-      [_eventBindingManager updateBindings:[manager parseArray:_serverConfiguration.eventBindings]];
+      [self.eventBindingManager updateBindings:[manager parseArray:self.serverConfiguration.eventBindings]];
     }
   }
 }
@@ -1195,70 +992,145 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
 // app events can use a server configuration up to 24 hours old to minimize network traffic.
 - (void)fetchServerConfiguration:(FBSDKCodeBlock)callback
 {
-  [g_appEventsConfigurationProvider loadAppEventsConfigurationWithBlock:^{
-    [g_serverConfigurationProvider loadServerConfigurationWithCompletionBlock:^(FBSDKServerConfiguration *serverConfiguration, NSError *error) {
-      self->_serverConfiguration = serverConfiguration;
+  [self.appEventsConfigurationProvider loadAppEventsConfigurationWithBlock:^{
+    [self.serverConfigurationProvider loadServerConfigurationWithCompletionBlock:^(FBSDKServerConfiguration *serverConfiguration, NSError *error) {
+      self.serverConfiguration = serverConfiguration;
 
-      if ([g_settings isAutoLogAppEventsEnabled] && self->_serverConfiguration.implicitPurchaseLoggingEnabled) {
-        [g_paymentObserver startObservingTransactions];
-      } else {
-        [g_paymentObserver stopObservingTransactions];
-      }
-      [g_featureChecker checkFeature:FBSDKFeatureRestrictiveDataFiltering completionBlock:^(BOOL enabled) {
-        if (enabled) {
-          [g_restrictiveDataFilterParameterProcessor enable];
-        }
-      }];
-      [g_featureChecker checkFeature:FBSDKFeatureEventDeactivation completionBlock:^(BOOL enabled) {
-        if (enabled) {
-          [g_eventDeactivationParameterProcessor enable];
-        }
-      }];
-      if (@available(iOS 14.0, *)) {
-        __weak FBSDKAppEvents *weakSelf = self;
-        [g_featureChecker checkFeature:FBSDKFeatureATELogging completionBlock:^(BOOL enabled) {
+      if ([self.settings isAutoLogAppEventsEnabled] && self.serverConfiguration.implicitPurchaseLoggingEnabled) {
+        [self.featureChecker checkFeature:FBSDKFeatureIAPLoggingSK2 completionBlock:^(BOOL enabled) {
           if (enabled) {
-            [weakSelf publishATE];
+            [self.transactionObserver startObserving];
+            [self.featureChecker checkFeature:FBSDKFeatureIOSManualImplicitPurchaseDedupe completionBlock:^(BOOL dedupeEnabled) {
+              if (dedupeEnabled) {
+                [self.iapDedupeProcessor enable];
+                [self.iapDedupeProcessor processSavedEvents];
+              } else {
+                [self.iapDedupeProcessor disable];
+              }
+            }];
+          } else {
+            [self.iapDedupeProcessor disable];
+            [self.transactionObserver stopObserving];
+            [self.paymentObserver startObservingTransactions];
           }
         }];
+      } else {
+        [self.iapTransactionCache setHasRestoredPurchases:YES];
+        [self.iapTransactionCache setNewCandidatesDate:[NSDate date]];
+        [self.iapDedupeProcessor disable];
+        [self.paymentObserver stopObservingTransactions];
+        [self.transactionObserver stopObserving];
       }
+      [self.featureChecker checkFeature:FBSDKFeatureRestrictiveDataFiltering completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.restrictiveDataFilterParameterProcessor enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureEventDeactivation completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.eventDeactivationParameterProcessor enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureProtectedMode completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.protectedModeManager enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureBannedParamFiltering completionBlock:^(BOOL enabled) {
+              if (enabled) {
+               [self.bannedParamsManager enable];
+              }
+            }];
+      [self.featureChecker checkFeature:FBSDKFeatureStdParamEnforcement completionBlock:^(BOOL enabled) {
+              if (enabled) {
+               [self.stdParamEnforcementManager enable];
+              }
+            }];
+      [self.featureChecker checkFeature:FBSDKFeatureMACARuleMatching completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.macaRuleMatchingManager enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureVVP completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.vvpConfigManager enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureBlocklistEvents completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.blocklistEventsManager enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureFilterRedactedEvents completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.redactedEventsManager enable];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureFilterSensitiveParams completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.sensitiveParamsManager enable];
+        }
+      }];
+      __weak FBSDKAppEvents *weakSelf = self;
+      [self.featureChecker checkFeature:FBSDKFeatureATELogging completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [weakSelf publishATE];
+        }
+      }];
+      [self.featureChecker checkFeature:FBSDKFeatureAppEventsCloudbridge completionBlock:^(BOOL enabled) {
+        if (enabled) {
+          [self.capiReporter enable];
+        }
+      }];
     #if !TARGET_OS_TV
-      [g_featureChecker checkFeature:FBSDKFeatureCodelessEvents completionBlock:^(BOOL enabled) {
+      [self.featureChecker checkFeature:FBSDKFeatureCodelessEvents completionBlock:^(BOOL enabled) {
         if (enabled) {
           [self enableCodelessEvents];
         }
       }];
-      [g_featureChecker checkFeature:FBSDKFeatureAAM completionBlock:^(BOOL enabled) {
+      [self.featureChecker checkFeature:FBSDKFeatureAAM completionBlock:^(BOOL enabled) {
         if (enabled) {
           [self.metadataIndexer enable];
         }
       }];
-      [g_featureChecker checkFeature:FBSDKFeaturePrivacyProtection completionBlock:^(BOOL enabled) {
+      [self.featureChecker checkFeature:FBSDKFeaturePrivacyProtection completionBlock:^(BOOL enabled) {
         if (enabled) {
           [self.onDeviceMLModelManager enable];
         }
       }];
-      if (@available(iOS 11.3, *)) {
-        if ([g_settings isSKAdNetworkReportEnabled]) {
-          [g_featureChecker checkFeature:FBSDKFeatureSKAdNetwork completionBlock:^(BOOL SKAdNetworkEnabled) {
-            if (SKAdNetworkEnabled) {
-              [SKAdNetwork registerAppForAdNetworkAttribution];
-              [g_featureChecker checkFeature:FBSDKFeatureSKAdNetworkConversionValue completionBlock:^(BOOL SKAdNetworkConversionValueEnabled) {
-                if (SKAdNetworkConversionValueEnabled) {
-                  [self.skAdNetworkReporter enable];
-                }
-              }];
+      if ([self.settings isSKAdNetworkReportEnabled]) {
+        [self.featureChecker checkFeature:FBSDKFeatureSKAdNetwork completionBlock:^(BOOL SKAdNetworkEnabled) {
+          if (SKAdNetworkEnabled) {
+            if (![self.primaryDataStore fb_boolForKey:@"com.facebook.sdk:FBSDKIsSkAdNetworkInstallReported"]) {
+              if (@available(iOS 15.4, *)) {
+                [SKAdNetwork updatePostbackConversionValue:0 completionHandler:nil];
+              } else {
+                // Fallback on earlier versions
+                [SKAdNetwork registerAppForAdNetworkAttribution];
+              }
+              [self.primaryDataStore fb_setBool:true forKey:@"com.facebook.sdk:FBSDKIsSkAdNetworkInstallReported"];
             }
-          }];
-        }
-      }
-      if (@available(iOS 14.0, *)) {
-        [g_featureChecker checkFeature:FBSDKFeatureAEM completionBlock:^(BOOL AEMEnabled) {
-          if (AEMEnabled) {
-            [FBAEMReporter enable];
+            [self.featureChecker checkFeature:FBSDKFeatureSKAdNetworkConversionValue completionBlock:^(BOOL SKAdNetworkConversionValueEnabled) {
+              if (SKAdNetworkConversionValueEnabled) {
+                if ([self.featureChecker isEnabled :FBSDKFeatureSKAdNetworkV4]) {
+                                     [self.skAdNetworkReporterV2 enable];
+                                   }
+                                   else {
+                                     [self.skAdNetworkReporter enable];
+                                   }
+              }
+            }];
           }
         }];
       }
+      [self.featureChecker checkFeature:FBSDKFeatureAEM completionBlock:^(BOOL AEMEnabled) {
+        if (AEMEnabled) {
+          [self.aemReporter enable];
+          [self.aemReporter setCatalogMatchingEnabled:[self.featureChecker isEnabled:FBSDKFeatureAEMCatalogMatching]];
+          [self.aemReporter setConversionFilteringEnabled:[self.featureChecker isEnabled:FBSDKFeatureAEMConversionFiltering]];
+          [self.aemReporter setAdvertiserRuleMatchInServerEnabled:[self.featureChecker isEnabled:FBSDKFeatureAEMAdvertiserRuleMatchInServer]];
+        }
+      }];
     #endif
       if (callback) {
         callback();
@@ -1267,65 +1139,158 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }];
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-- (void)instanceLogEvent:(FBSDKAppEventName)eventName
-              valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-             accessToken:(FBSDKAccessToken *)accessToken
+- (nullable NSDictionary<NSString *, id> *)addImplicitPurchaseParameters:(nullable NSDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *)operationalParameters{
+  NSMutableDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *params = [operationalParameters mutableCopy];
+  if (params == nil) {
+    params = [[NSMutableDictionary alloc] initWithDictionary:@{}];
+  }
+  NSMutableDictionary<NSString *, id> *iapParameters = [[params objectForKey:FBSDKAppOperationalDataTypeIAPParameters] mutableCopy];
+  if (iapParameters == nil) {
+    iapParameters = [[NSMutableDictionary alloc] initWithDictionary:@{}];
+  }
+  if (self.serverConfiguration) {
+    [FBSDKTypeUtility dictionary:iapParameters setObject:self.serverConfiguration.implicitPurchaseLoggingEnabled ? @"1" : @"0" forKey:@"is_implicit_purchase_logging_enabled"];
+    [FBSDKTypeUtility dictionary:iapParameters setObject:[self.settings isAutoLogAppEventsEnabled] ? @"1" : @"0" forKey:@"is_autolog_app_events_enabled"];
+  }
+  if (iapParameters != nil && iapParameters.count > 0) {
+    [FBSDKTypeUtility dictionary:params setObject:iapParameters forKey:FBSDKAppOperationalDataTypeIAPParameters];
+  }
+  return [params copy];
+}
+
+- (void)    logEvent:(FBSDKAppEventName)eventName
+          valueToSum:(NSNumber *)valueToSum
+          parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
+  isImplicitlyLogged:(BOOL)isImplicitlyLogged
+         accessToken:(FBSDKAccessToken *)accessToken
+{
+  if (!isImplicitlyLogged && self.iapDedupeProcessor.isEnabled && [self.iapDedupeProcessor shouldDedupeEvent:eventName valueToSum:valueToSum parameters:parameters]) {
+    [self.iapDedupeProcessor processManualEvent:eventName
+                                     valueToSum:valueToSum
+                                     parameters:parameters
+                                    accessToken:accessToken
+                          operationalParameters:nil];
+  } else {
+    [self doLogEvent:eventName
+          valueToSum:valueToSum
+          parameters:parameters
+  isImplicitlyLogged:isImplicitlyLogged
+         accessToken:accessToken
+operationalParameters:nil];
+    // Unless the behavior is set to only allow explicit flushing, we go ahead and flush, since purchase events
+    // are relatively rare and relatively high value and worth getting across on wire right away.
+    if (eventName == FBSDKAppEventNamePurchased && self.flushBehavior != FBSDKAppEventsFlushBehaviorExplicitOnly) {
+      [self flushForReason:FBSDKAppEventsFlushReasonEagerlyFlushingEvent];
+    }
+  }
+}
+
+- (void)    doLogEvent:(FBSDKAppEventName)eventName
+          valueToSum:(nullable NSNumber *)valueToSum
+          parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
+  isImplicitlyLogged:(BOOL)isImplicitlyLogged
+         accessToken:(nullable FBSDKAccessToken *)accessToken
+ operationalParameters:(nullable NSDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *)operationalParameters
 {
   [self validateConfiguration];
 
   // Kill events if kill-switch is enabled
-  if (!g_gateKeeperManager) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                        logEntry:@"FBSDKAppEvents: Cannot log app events before the SDK is initialized."];
+  if (!self.gateKeeperManager) {
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                           logEntry:@"FBSDKAppEvents: Cannot log app events before the SDK is initialized."];
     return;
-  } else if ([g_gateKeeperManager boolForKey:FBSDKGateKeeperAppEventsKillSwitch
-                                defaultValue:NO]) {
+  } else if ([self.gateKeeperManager boolForKey:FBSDKGateKeeperAppEventsKillSwitch
+                                   defaultValue:NO]) {
     NSString *message = [NSString stringWithFormat:@"FBSDKAppEvents: KillSwitch is enabled and fail to log app event: %@", eventName];
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                        logEntry:message];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                           logEntry:message];
     return;
   }
 #if !TARGET_OS_TV
   // Update conversion value for SKAdNetwork if needed
-  [self.skAdNetworkReporter recordAndUpdateEvent:eventName
-                                        currency:[FBSDKTypeUtility dictionary:parameters objectForKey:FBSDKAppEventParameterNameCurrency ofType:NSString.class]
-                                           value:valueToSum
-                                      parameters:parameters];
+  [self.featureChecker checkFeature:FBSDKFeatureSKAdNetworkV4 completionBlock:^(BOOL enabled) {
+    if (enabled) {
+      [self.skAdNetworkReporterV2 recordAndUpdateEvent:eventName
+                                            currency:[FBSDKTypeUtility dictionary:parameters objectForKey:FBSDKAppEventParameterNameCurrency ofType:NSString.class]
+                                               value:valueToSum
+                                          parameters:parameters];
+    }
+    else {
+      [self.skAdNetworkReporter recordAndUpdateEvent:eventName
+                                            currency:[FBSDKTypeUtility dictionary:parameters objectForKey:FBSDKAppEventParameterNameCurrency ofType:NSString.class]
+                                               value:valueToSum
+                                          parameters:parameters];
+    }
+  }];
   // Update conversion value for AEM if needed
-  [FBAEMReporter recordAndUpdateEvent:eventName
-                             currency:[FBSDKTypeUtility dictionary:parameters objectForKey:FBSDKAppEventParameterNameCurrency ofType:NSString.class]
-                                value:valueToSum
-                           parameters:parameters];
+  [self.aemReporter recordAndUpdateEvent:eventName
+                                currency:[FBSDKTypeUtility dictionary:parameters objectForKey:FBSDKAppEventParameterNameCurrency ofType:NSString.class]
+                                   value:valueToSum
+                              parameters:parameters];
 #endif
 
-  if ([FBSDKAppEventsUtility shouldDropAppEvent]) {
+  if (self.appEventsUtility.shouldDropAppEvents) {
     return;
   }
 
-  if (isImplicitlyLogged && _serverConfiguration && !_serverConfiguration.isImplicitLoggingSupported) {
+  if (isImplicitlyLogged && self.serverConfiguration && !self.serverConfiguration.isImplicitLoggingSupported) {
     return;
+  }
+
+  operationalParameters = [self addImplicitPurchaseParameters:operationalParameters];
+
+  BOOL isProtectedModeApplied = (self.protectedModeManager && [FBSDKProtectedModeManager isProtectedModeAppliedWithParameters:parameters]);
+  if (!isProtectedModeApplied && self.sensitiveParamsManager) {
+    @try {
+      parameters = [self.sensitiveParamsManager processParameters:parameters eventName:eventName];
+    } @catch(NSException *exception) {
+      [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                                   logEntry:@"FBSDKAppEvents: caught exception while processing sensitiveParamsManager."];
+    }
+  }
+
+  // remove banned parameters
+    if (self.bannedParamsManager) {
+      @try {
+        parameters = [self.bannedParamsManager processParameters:parameters event:eventName?:@""];
+      } @catch(NSException *exception) {
+        [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                               logEntry:@"FBSDKAppEvents: caght exception while processing bannedParamsManager."];
+      }
+    }
+
+  if (self.macaRuleMatchingManager) {
+    @try {
+        parameters = [self.macaRuleMatchingManager processParameters:parameters event:eventName?:@""];
+    } @catch(NSException *exception) {}
+  }
+
+  // Schematize certain params
+  if (self.stdParamEnforcementManager) {
+    @try {
+      parameters = [self.stdParamEnforcementManager processParameters:parameters event:eventName?:@""];
+    } @catch(NSException *exception) {
+        [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                                     logEntry:@"FBSDKAppEvents: caght exception while processing stdParamEnforcementManager."];
+    }
   }
 
   if (!isImplicitlyLogged && !g_explicitEventsLoggedYet) {
     g_explicitEventsLoggedYet = YES;
   }
-  __block BOOL failed = ![FBSDKAppEventsUtility validateIdentifier:eventName];
+  __block BOOL failed = ![self.appEventsUtility validateIdentifier:eventName];
 
   // Make sure parameter dictionary is well formed.  Log and exit if not.
   [FBSDKTypeUtility dictionary:parameters enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
     if (![key isKindOfClass:NSString.class]) {
-      [FBSDKAppEventsUtility logAndNotify:[NSString stringWithFormat:@"The keys in the parameters must be NSStrings, '%@' is not.", key]];
+      [self.appEventsUtility logAndNotify:[NSString stringWithFormat:@"The keys in the parameters must be NSStrings, '%@' is not.", key]];
       failed = YES;
     }
-    if (![FBSDKAppEventsUtility validateIdentifier:key]) {
+    if (![self.appEventsUtility validateIdentifier:key]) {
       failed = YES;
     }
     if (![obj isKindOfClass:NSString.class] && ![obj isKindOfClass:NSNumber.class]) {
-      [FBSDKAppEventsUtility logAndNotify:[NSString stringWithFormat:@"The values in the parameters dictionary must be NSStrings or NSNumbers, '%@' is not.", obj]];
+      [self.appEventsUtility logAndNotify:[NSString stringWithFormat:@"The values in the parameters dictionary must be NSStrings or NSNumbers, '%@' is not.", obj]];
       failed = YES;
     }
   }];
@@ -1334,7 +1299,9 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     return;
   }
   // Filter out deactivated params
-  parameters = [g_eventDeactivationParameterProcessor processParameters:parameters eventName:eventName];
+  if (self.eventDeactivationParameterProcessor) {
+    parameters = [self.eventDeactivationParameterProcessor processParameters:parameters eventName:eventName];
+  }
 
 #if !TARGET_OS_TV
   // Filter out restrictive data with on-device ML
@@ -1343,17 +1310,39 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }
 #endif
   // Filter out restrictive keys
-  parameters = [g_restrictiveDataFilterParameterProcessor processParameters:parameters
-                                                                  eventName:eventName];
+  parameters = [self.restrictiveDataFilterParameterProcessor processParameters:parameters
+                                                                     eventName:eventName];
 
-  NSMutableDictionary<NSString *, id> *eventDictionary = [NSMutableDictionary dictionaryWithDictionary:parameters];
-  [FBSDKTypeUtility dictionary:eventDictionary setObject:eventName forKey:FBSDKAppEventParameterEventName];
-  if (!eventDictionary[FBSDKAppEventParameterLogTime]) {
-    [FBSDKTypeUtility dictionary:eventDictionary setObject:@([FBSDKAppEventsUtility unixTimeNow]) forKey:FBSDKAppEventParameterLogTime];
+  // Filter out non-standard params
+  if (self.protectedModeManager) {
+    @try {
+        parameters = [self.protectedModeManager processParameters:parameters eventName:eventName];
+    } @catch(NSException *exception) {}
   }
-  [FBSDKTypeUtility dictionary:eventDictionary setObject:valueToSum forKey:@"_valueToSum"];
+
+  // VPPA Video Viewing Protections — must run AFTER ProtectedMode so the
+  // `vvp` / `vvp_md` tags survive ProtectedMode's standard-params filter
+  // (those keys are added to ProtectedMode's allowlist for that reason).
+  if (self.vvpConfigManager) {
+    @try {
+      parameters = [self.vvpConfigManager processParameters:parameters event:eventName ?: @""];
+    } @catch (NSException *exception) {
+      [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                             logEntry:@"FBSDKAppEvents: caught exception while processing vvpConfigManager."];
+    }
+  }
+
+
+  NSMutableDictionary<FBSDKAppEventParameterName, id> *eventDictionary = [NSMutableDictionary dictionaryWithDictionary:parameters ?: @{}];
+  [FBSDKTypeUtility dictionary:eventDictionary setObject:eventName forKey:FBSDKAppEventParameterNameEventName];
+  if (!eventDictionary[FBSDKAppEventParameterNameLogTime]) {
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:@(self.appEventsUtility.unixTimeNow) forKey:FBSDKAppEventParameterNameLogTime];
+  }
+  if (valueToSum != nil) {
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:valueToSum forKey:@"_valueToSum"];
+  }
   if (isImplicitlyLogged) {
-    [FBSDKTypeUtility dictionary:eventDictionary setObject:@"1" forKey:FBSDKAppEventParameterImplicitlyLogged];
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:@"1" forKey:FBSDKAppEventParameterNameImplicitlyLogged];
   }
 
   NSString *currentViewControllerName;
@@ -1362,7 +1351,11 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     // We only collect the view controller when on the main thread, as the behavior off
     // the main thread is unpredictable.  Besides, UI state for off-main-thread computations
     // isn't really relevant anyhow.
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    // @lint-ignore FBOBJCDISCOURAGEDFUNCTION
     UIViewController *vc = UIApplication.sharedApplication.keyWindow.rootViewController;
+    #pragma clang diagnostic pop
     vc = vc.presentedViewController ?: vc;
     if (vc) {
       currentViewControllerName = [vc.class description];
@@ -1376,60 +1369,81 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }
   [FBSDKTypeUtility dictionary:eventDictionary setObject:currentViewControllerName forKey:@"_ui"];
 
-  if (applicationState == UIApplicationStateBackground) {
-    [FBSDKTypeUtility dictionary:eventDictionary setObject:@"1" forKey:FBSDKAppEventParameterInBackground];
+  NSString *screenTitle = [FBSDKScreenTitleObserver shared].currentScreenTitle;
+  if (screenTitle.length > 0) {
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:screenTitle forKey:FBSDKAppEventParameterNameScreenTitle];
   }
 
-  NSString *tokenString = [FBSDKAppEventsUtility tokenStringToUseFor:accessToken];
+  // Attribute the event to the app link that most recently brought the user into the app, or that
+  // the app most recently sent the user out through.
+  FBSDKAppLinkURLCache *appLinkURLCache = FBSDKAppLinkURLCache.shared;
+  NSString *inboundURL = appLinkURLCache.inboundURL;
+  if (inboundURL.length > 0) {
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:inboundURL forKey:FBSDKAppEventParameterNameInboundURL];
+  }
+  NSString *outboundURL = appLinkURLCache.outboundURL;
+  if (outboundURL.length > 0) {
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:outboundURL forKey:FBSDKAppEventParameterNameOutboundURL];
+  }
+
+  if (applicationState == UIApplicationStateBackground) {
+    [FBSDKTypeUtility dictionary:eventDictionary setObject:@"1" forKey:FBSDKAppEventParameterNameInBackground];
+  }
+
+  NSString *tokenString = [self.appEventsUtility tokenStringToUseFor:accessToken
+                                                loggingOverrideAppID:self.loggingOverrideAppID];
   NSString *appID = [self appID];
 
   @synchronized(self) {
-    if (!_appEventsState) {
-      _appEventsState = [self.appEventsStateProvider createStateWithToken:tokenString appID:appID];
-    } else if (![_appEventsState isCompatibleWithTokenString:tokenString appID:appID]) {
+    if (!self.appEventsState) {
+      self.appEventsState = [self.appEventsStateProvider createStateWithToken:tokenString appID:appID];
+    } else if (![self.appEventsState isCompatibleWithTokenString:tokenString appID:appID]) {
       if (self.flushBehavior == FBSDKAppEventsFlushBehaviorExplicitOnly) {
-        [g_appEventsStateStore persistAppEventsData:_appEventsState];
+        [self.appEventsStateStore persistAppEventsData:self.appEventsState];
       } else {
         [self flushForReason:FBSDKAppEventsFlushReasonSessionChange];
       }
-      _appEventsState = [self.appEventsStateProvider createStateWithToken:tokenString appID:appID];
+      self.appEventsState = [self.appEventsStateProvider createStateWithToken:tokenString appID:appID];
     }
 
-    [_appEventsState addEvent:eventDictionary isImplicit:isImplicitlyLogged];
+    [self.appEventsState addEvent:eventDictionary isImplicit:isImplicitlyLogged withOperationalParameters:operationalParameters];
     if (!isImplicitlyLogged) {
       NSString *message = [NSString stringWithFormat:@"FBSDKAppEvents: Recording event @ %f: %@",
-                           [FBSDKAppEventsUtility unixTimeNow],
+                           [self.appEventsUtility unixTimeNow],
                            eventDictionary];
-      [g_logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                          logEntry:message];
+      [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                             logEntry:message];
     }
 
     [self checkPersistedEvents];
 
-    if (_appEventsState.events.count > NUM_LOG_EVENTS_TO_TRY_TO_FLUSH_AFTER
+    if (nil != [self.appEventsUtility getCampaignIDs]) {
+       [self flushForReason:FBSDKAppEventsFlushReasonEagerlyFlushingEvent];
+       return;
+    }
+
+    if (self.appEventsState.events.count > NUM_LOG_EVENTS_TO_TRY_TO_FLUSH_AFTER
         && self.flushBehavior != FBSDKAppEventsFlushBehaviorExplicitOnly) {
       [self flushForReason:FBSDKAppEventsFlushReasonEventThreshold];
     }
   }
 }
 
-#pragma clang diagnostic pop
-
 // this fetches persisted event states.
 // for those matching the currently tracked events, add it.
 // otherwise, either flush (if not explicitonly behavior) or persist them back.
 - (void)checkPersistedEvents
 {
-  NSArray *existingEventsStates = [g_appEventsStateStore retrievePersistedAppEventsStates];
+  NSArray<FBSDKAppEventsState *> *existingEventsStates = [self.appEventsStateStore retrievePersistedAppEventsStates];
   if (existingEventsStates.count == 0) {
     return;
   }
   FBSDKAppEventsState *matchingEventsPreviouslySaved = nil;
   // reduce lock time by creating a new FBSDKAppEventsState to collect matching persisted events.
   @synchronized(self) {
-    if (_appEventsState) {
-      matchingEventsPreviouslySaved = [self.appEventsStateProvider createStateWithToken:_appEventsState.tokenString
-                                                                                  appID:_appEventsState.appID];
+    if (self.appEventsState) {
+      matchingEventsPreviouslySaved = [self.appEventsStateProvider createStateWithToken:self.appEventsState.tokenString
+                                                                                  appID:self.appEventsState.appID];
     }
   }
   for (FBSDKAppEventsState *saved in existingEventsStates) {
@@ -1437,7 +1451,7 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
       [matchingEventsPreviouslySaved addEventsFromAppEventState:saved];
     } else {
       if (self.flushBehavior == FBSDKAppEventsFlushBehaviorExplicitOnly) {
-        [g_appEventsStateStore persistAppEventsData:saved];
+        [self.appEventsStateStore persistAppEventsData:saved];
       } else {
         dispatch_async(dispatch_get_main_queue(), ^{
           [self flushOnMainQueue:saved forReason:FBSDKAppEventsFlushReasonPersistedEvents];
@@ -1447,8 +1461,8 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }
   if (matchingEventsPreviouslySaved.events.count > 0) {
     @synchronized(self) {
-      if ([_appEventsState isCompatibleWithAppEventsState:matchingEventsPreviouslySaved]) {
-        [_appEventsState addEventsFromAppEventState:matchingEventsPreviouslySaved];
+      if ([self.appEventsState isCompatibleWithAppEventsState:matchingEventsPreviouslySaved]) {
+        [self.appEventsState addEventsFromAppEventState:matchingEventsPreviouslySaved];
       }
     }
   }
@@ -1462,33 +1476,40 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }
 
   if (appEventsState.appID.length == 0) {
-    [g_logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors logEntry:@"Missing [FBSDKAppEvents appEventsState.appID] for [FBSDKAppEvents flushOnMainQueue:]"];
+    [self.logger singleShotLogEntry:FBSDKLoggingBehaviorDeveloperErrors logEntry:@"Missing [FBSDKAppEvents appEventsState.appID] for [FBSDKAppEvents flushOnMainQueue:]"];
     return;
   }
 
-  [FBSDKAppEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
+  [self.appEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
 
   [self fetchServerConfiguration:^(void) {
-    if ([FBSDKAppEventsUtility shouldDropAppEvent]) {
+    if ([self.appEventsUtility shouldDropAppEvents]) {
       return;
     }
     NSString *receipt_data = appEventsState.extractReceiptData;
-    const BOOL shouldIncludeImplicitEvents = (self->_serverConfiguration.implicitLoggingEnabled && g_settings.isAutoLogAppEventsEnabled);
-    NSString *encodedEvents = [appEventsState JSONStringForEventsIncludingImplicitEvents:shouldIncludeImplicitEvents];
+    const BOOL shouldIncludeImplicitEvents = (self.serverConfiguration.implicitLoggingEnabled && self.settings.isAutoLogAppEventsEnabled);
+    NSDictionary<NSString *, id> *appEventsData = [appEventsState JSONStringForEventsAndOperationalParametersIncludingImplicitEvents:shouldIncludeImplicitEvents];
+    NSString *encodedEvents = [appEventsData objectForKey:@"custom_events"];
+    NSString *encodedOperationalData = [appEventsData objectForKey:@"operational_parameters"];
     if (!encodedEvents || appEventsState.events.count == 0) {
-      [g_logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                          logEntry:@"FBSDKAppEvents: Flushing skipped - no events after removing implicitly logged ones.\n"];
+      [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                             logEntry:@"FBSDKAppEvents: Flushing skipped - no events after removing implicitly logged ones.\n"];
       return;
     }
-    NSMutableDictionary<NSString *, id> *postParameters = [FBSDKAppEventsUtility
-                                                           activityParametersDictionaryForEvent:@"CUSTOM_APP_EVENTS"
-                                                           shouldAccessAdvertisingID:self->_serverConfiguration.advertisingIDEnabled];
+    NSMutableDictionary<NSString *, NSString *> *postParameters = [self.appEventsUtility
+                                                                   activityParametersDictionaryForEvent:@"CUSTOM_APP_EVENTS"
+                                                                   shouldAccessAdvertisingID:self.serverConfiguration.advertisingIDEnabled
+                                                                   userID:self.userID
+                                                                   userData:[self getUserData]];
     NSInteger length = receipt_data.length;
     if (length > 0) {
       [FBSDKTypeUtility dictionary:postParameters setObject:receipt_data forKey:@"receipt_data"];
     }
 
     [FBSDKTypeUtility dictionary:postParameters setObject:encodedEvents forKey:@"custom_events"];
+    if ([self.featureChecker isEnabled:FBSDKFeatureIAPLoggingSK2] && encodedOperationalData != nil) {
+      [FBSDKTypeUtility dictionary:postParameters setObject:encodedOperationalData forKey:@"operational_parameters"];
+    }
     if (appEventsState.numSkipped > 0) {
       [FBSDKTypeUtility dictionary:postParameters setObject:[NSString stringWithFormat:@"%lu", (unsigned long)appEventsState.numSkipped] forKey:@"num_skipped_events"];
     }
@@ -1497,7 +1518,7 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     }
 
     NSString *loggingEntry = nil;
-    if ([g_settings.loggingBehaviors containsObject:FBSDKLoggingBehaviorAppEvents]) {
+    if ([self.settings isLoggingBehaviorEnabled:FBSDKLoggingBehaviorAppEvents]) {
       NSData *prettyJSONData = [FBSDKTypeUtility dataWithJSONObject:appEventsState.events
                                                             options:NSJSONWritingPrettyPrinted
                                                               error:NULL];
@@ -1508,17 +1529,20 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
       [paramsForPrinting removeObjectForKey:@"custom_events_file"];
 
       loggingEntry = [NSString stringWithFormat:@"FBSDKAppEvents: Flushed @ %f, %lu events due to '%@' - %@\nEvents: %@",
-                      [FBSDKAppEventsUtility unixTimeNow],
+                      [self.appEventsUtility unixTimeNow],
                       (unsigned long)appEventsState.events.count,
-                      [FBSDKAppEventsUtility flushReasonToString:reason],
+                      [self.appEventsUtility flushReasonToString:reason],
                       paramsForPrinting,
                       prettyPrintedJsonEvents];
     }
-    id<FBSDKGraphRequest> request = [g_graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/activities", appEventsState.appID]
-                                                                                parameters:postParameters
-                                                                               tokenString:appEventsState.tokenString
-                                                                                HTTPMethod:FBSDKHTTPMethodPOST
-                                                                                     flags:FBSDKGraphRequestFlagDoNotInvalidateTokenOnError | FBSDKGraphRequestFlagDisableErrorRecovery];
+    [self.capiReporter recordEvent:postParameters];
+    id<FBSDKGraphRequest> request = [self.graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/activities", appEventsState.appID]
+                                                                                   parameters:postParameters
+                                                                                  tokenString:appEventsState.tokenString
+                                                                                   HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                        flags:FBSDKGraphRequestFlagDoNotInvalidateTokenOnError | FBSDKGraphRequestFlagDisableErrorRecovery
+                                                                                 forAppEvents:YES
+                                                            useAlternativeDefaultDomainPrefix:NO];
     [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
       [self handleActivitiesPostCompletion:error
                               loggingEntry:loggingEntry
@@ -1537,7 +1561,7 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     FlushResultNoConnectivity,
   };
 
-  [FBSDKAppEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
+  [self.appEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
 
   FBSDKAppEventsFlushResult flushResult = FlushResultSuccess;
   if (error) {
@@ -1554,15 +1578,15 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     // as opposed to cases where the token is bad.
     if ([error.userInfo[FBSDKGraphRequestErrorKey] unsignedIntegerValue] == FBSDKGraphRequestErrorOther) {
       NSString *message = [NSString stringWithFormat:@"Failed to send AppEvents: %@", error];
-      [FBSDKAppEventsUtility logAndNotify:message allowLogAsDeveloperError:!appEventsState.areAllEventsImplicit];
+      [self.appEventsUtility logAndNotify:message allowLogAsDeveloperError:!appEventsState.areAllEventsImplicit];
     }
   } else if (flushResult == FlushResultNoConnectivity) {
     @synchronized(self) {
-      if ([appEventsState isCompatibleWithAppEventsState:_appEventsState]) {
-        [_appEventsState addEventsFromAppEventState:appEventsState];
+      if ([appEventsState isCompatibleWithAppEventsState:self.appEventsState]) {
+        [self.appEventsState addEventsFromAppEventState:appEventsState];
       } else {
         // flush failed due to connectivity. Persist to be tried again later.
-        [g_appEventsStateStore persistAppEventsData:appEventsState];
+        [self.appEventsStateStore persistAppEventsData:appEventsState];
       }
     }
   }
@@ -1583,21 +1607,21 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   }
 
   NSString *message = [NSString stringWithFormat:@"%@\nFlush Result : %@", loggingEntry, resultString];
-  [g_logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                      logEntry:message];
+  [self.logger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                         logEntry:message];
 }
 
 - (void)flushTimerFired:(id)arg
 {
-  [FBSDKAppEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
-  if (self.flushBehavior != FBSDKAppEventsFlushBehaviorExplicitOnly && !self.disableTimer) {
+  [self.appEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
+  if (self.flushBehavior != FBSDKAppEventsFlushBehaviorExplicitOnly) {
     [self flushForReason:FBSDKAppEventsFlushReasonTimer];
   }
 }
 
 - (void)applicationDidBecomeActive
 {
-  [FBSDKAppEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
+  [self.appEventsUtility ensureOnMainThread:NSStringFromSelector(_cmd) className:NSStringFromClass(self.class)];
 
   // This must happen here to avoid a race condition with the shared `Settings` object.
   [self fetchServerConfiguration:nil];
@@ -1608,19 +1632,44 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
   [self.timeSpentRecorder restore:NO];
 }
 
-- (void)applicationMovingFromActiveStateOrTerminating
+- (void)applicationMovingFromActiveState
 {
   // When moving from active state, we don't have time to wait for the result of a flush, so
   // just persist events to storage, and we'll process them at the next activation.
   FBSDKAppEventsState *copy = nil;
   @synchronized(self) {
-    copy = [_appEventsState copy];
-    _appEventsState = nil;
+    copy = [self.appEventsState copy];
+    self.appEventsState = nil;
   }
   if (copy) {
-    [g_appEventsStateStore persistAppEventsData:copy];
+    [self.appEventsStateStore persistAppEventsData:copy];
   }
   [self.timeSpentRecorder suspend];
+}
+
+- (void)applicationTerminating
+{
+  NSString *appID = [self appID];
+  if (appID) {
+    NSString *lastAttributionPingString = [NSString stringWithFormat:@"com.facebook.sdk:lastAttributionPing%@", appID];
+    NSString *lastInstallResponseKey = [NSString stringWithFormat:@"com.facebook.sdk:lastInstallResponse%@", appID];
+    if (nil == [self.primaryDataStore fb_objectForKey:lastInstallResponseKey]) {
+      [self.primaryDataStore fb_removeObjectForKey:lastAttributionPingString];
+    }
+  }
+  [self applicationMovingFromActiveState];
+}
+
+- (void)checkForAutologgedPurchases
+{
+#if DEBUG
+  if ([self.settings isAutoLogAppEventsEnabled] && self.serverConfiguration.implicitPurchaseLoggingEnabled && !g_hasLoggedManualImplicitLoggingWarning) {
+    NSString *message = @"You are manually logging purchase events, but you also have auto-logging turned on. "
+    "If you are manually logging In-App Purchases, we recommend just choosing one set up to avoid duplicate logging";
+    NSLog(@"%@%@", @"<Warning>: ", message);
+    g_hasLoggedManualImplicitLoggingWarning = YES;
+  }
+#endif
 }
 
 #pragma mark - Configuration Validation
@@ -1640,27 +1689,38 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
 
 #pragma mark - Custom Audience
 
-+ (id<FBSDKGraphRequest>)requestForCustomAudienceThirdPartyIDWithAccessToken:(FBSDKAccessToken *)accessToken
+- (nullable id<FBSDKGraphRequest>)requestForCustomAudienceThirdPartyIDWithAccessToken:(nullable FBSDKAccessToken *)accessToken
 {
-  [self.shared validateConfiguration];
+  [self validateConfiguration];
 
-  accessToken = accessToken ?: [FBSDKAccessToken currentAccessToken];
+  if (accessToken == nil && (![[FBSDKDomainHandler sharedInstance] isDomainHandlingEnabled] || self.settings.isAdvertiserTrackingEnabled)) {
+    accessToken = FBSDKAccessToken.currentAccessToken;
+  }
+
   // Rules for how we use the attribution ID / advertiser ID for an 'custom_audience_third_party_id' Graph API request
   // 1) if the OS tells us that the user has Limited Ad Tracking, then just don't send, and return a nil in the token.
   // 2) if the app has set 'limitEventAndDataUsage', this effectively implies that app-initiated ad targeting shouldn't happen,
   // so use that data here to return nil as well.
   // 3) if we have a user session token, then no need to send attribution ID / advertiser ID back as the udid parameter
   // 4) otherwise, send back the udid parameter.
-  if (g_settings.advertisingTrackingStatus == FBSDKAdvertisingTrackingDisallowed || g_settings.isEventDataUsageLimited) {
+  if (self.settings.isEventDataUsageLimited) {
+    return nil;
+  }
+  if ([[FBSDKDomainHandler sharedInstance] isDomainHandlingEnabled]) {
+    if (![self.settings isAdvertiserTrackingEnabled]) {
+      return nil;
+    }
+  } else if (self.settings.advertisingTrackingStatus == FBSDKAdvertisingTrackingDisallowed) {
     return nil;
   }
 
-  NSString *tokenString = [FBSDKAppEventsUtility tokenStringToUseFor:accessToken];
+  NSString *tokenString = [self.appEventsUtility tokenStringToUseFor:accessToken
+                                                loggingOverrideAppID:self.loggingOverrideAppID];
   NSString *udid = nil;
   if (!accessToken) {
     // We don't have a logged in user, so we need some form of udid representation. Prefer advertiser ID if
     // available. Note that this function only makes sense to be called in the context of advertising.
-    udid = [self.shared.advertiserIDProvider advertiserID];
+    udid = self.advertiserIDProvider.advertiserID;
     if (!udid) {
       // No udid, and no user token.  No point in making the request.
       return nil;
@@ -1672,111 +1732,86 @@ static id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> g_restrictiv
     parameters = @{ @"udid" : udid };
   }
 
-  NSString *graphPath = [NSString stringWithFormat:@"%@/custom_audience_third_party_id", [[self shared] appID]];
+  NSString *graphPath = [NSString stringWithFormat:@"%@/custom_audience_third_party_id", self.appID];
 
-  id<FBSDKGraphRequest> request = [g_graphRequestFactory createGraphRequestWithGraphPath:graphPath
-                                                                              parameters:parameters
-                                                                             tokenString:tokenString
-                                                                              HTTPMethod:FBSDKHTTPMethodGET
-                                                                                   flags:FBSDKGraphRequestFlagDoNotInvalidateTokenOnError | FBSDKGraphRequestFlagDisableErrorRecovery];
+  id<FBSDKGraphRequest> request = [self.graphRequestFactory createGraphRequestWithGraphPath:graphPath
+                                                                                 parameters:parameters
+                                                                                tokenString:tokenString
+                                                                                 HTTPMethod:FBSDKHTTPMethodGET
+                                                                                      flags:FBSDKGraphRequestFlagDoNotInvalidateTokenOnError | FBSDKGraphRequestFlagDisableErrorRecovery
+                                                          useAlternativeDefaultDomainPrefix:NO];
   return request;
 }
 
+#pragma clang diagnostic pop
+
 #pragma mark - Testability
 
-#if DEBUG && FBTEST
+#if DEBUG
 
-+ (void)reset
+- (void)reset
 {
-  self.shared.isConfigured = NO;
-  [self resetApplicationState];
-  g_gateKeeperManager = nil;
-  g_graphRequestFactory = nil;
+  self.isConfigured = NO;
+  self.applicationState = UIApplicationStateInactive;
+
+  self.gateKeeperManager = nil;
+  self.appEventsConfigurationProvider = nil;
+  self.serverConfigurationProvider = nil;
+  self.graphRequestFactory = nil;
+  self.featureChecker = nil;
+  self.primaryDataStore = nil;
+  self.logger = nil;
+  self.settings = nil;
+  self.paymentObserver = nil;
+  self.timeSpentRecorder = nil;
+  self.appEventsStateStore = nil;
+  self.eventDeactivationParameterProcessor = nil;
+  self.restrictiveDataFilterParameterProcessor = nil;
+  self.atePublisher = nil;
+  self.atePublisherFactory = nil;
+  self.appEventsStateProvider = nil;
+  self.advertiserIDProvider = nil;
+  self.userDataStore = nil;
+  self.appEventsUtility = nil;
+  self.internalUtility = nil;
+  self.protectedModeManager = nil;
+  self.bannedParamsManager = nil;
+  self.stdParamEnforcementManager = nil;
+  self.macaRuleMatchingManager = nil;
+  self.vvpConfigManager = nil;
+  self.blocklistEventsManager = nil;
+  self.redactedEventsManager = nil;
+  self.sensitiveParamsManager = nil;
+  self.transactionObserver = nil;
+  // The actual setter on here has a check to see if the SDK is initialized
+  // This is not a useful check for tests so we can just reset the underlying
+  // static var.
+  @synchronized (self) {
+    g_overrideAppID = nil;
+  }
+
+#if !TARGET_OS_TV
+  self.onDeviceMLModelManager = nil;
+  self.metadataIndexer = nil;
+  self.skAdNetworkReporter = nil;
+  self.skAdNetworkReporterV2 = nil;
+  self.codelessIndexer = nil;
+  self.swizzler = nil;
+  self.eventBindingManager = nil;
+  self.aemReporter = nil;
+#endif
 }
 
-+ (void)setSingletonInstanceToInstance:(FBSDKAppEvents *)appEvents
++ (void)setShared:(FBSDKAppEvents *)appEvents
 {
   _shared = appEvents;
 }
 
-+ (void)resetApplicationState
-{
-  self.shared.applicationState = UIApplicationStateInactive;
-}
-
-+ (id<FBSDKFeatureChecking>)featureChecker
-{
-  return g_featureChecker;
-}
-
-+ (id<FBSDKGraphRequestFactory>)graphRequestFactory
-{
-  return g_graphRequestFactory;
-}
-
-+ (id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
-{
-  return g_serverConfigurationProvider;
-}
-
-+ (Class<FBSDKAppEventsConfigurationProviding>)appEventsConfigurationProvider
-{
-  return g_appEventsConfigurationProvider;
-}
-
-+ (Class<FBSDKGateKeeperManaging>)gateKeeperManager
-{
-  return g_gateKeeperManager;
-}
-
-+ (Class<FBSDKLogging>)logger
-{
-  return g_logger;
-}
-
-+ (id<FBSDKSettings>)settings
-{
-  return g_settings;
-}
-
-+ (void)setSettings:(id<FBSDKSettings>)settings
-{
-  g_settings = settings;
-}
-
-+ (id<FBSDKPaymentObserving>)paymentObserver
-{
-  return g_paymentObserver;
-}
-
-+ (void)setPaymentObserver:(id<FBSDKPaymentObserving>)paymentObserver
-{
-  g_paymentObserver = paymentObserver;
-}
-
-+ (id<FBSDKAppEventsStatePersisting>)appEventsStateStore
-{
-  return g_appEventsStateStore;
-}
-
 - (void)setFlushBehavior:(FBSDKAppEventsFlushBehavior)flushBehavior
 {
+  [self validateConfiguration];
   _flushBehavior = flushBehavior;
 }
-
- #if !TARGET_OS_TV
-
-+ (id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing>)eventDeactivationParameterProcessor
-{
-  return g_eventDeactivationParameterProcessor;
-}
-
-+ (id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing>)restrictiveDataFilterParameterProcessor
-{
-  return g_restrictiveDataFilterParameterProcessor;
-}
-
- #endif
 
 #endif
 

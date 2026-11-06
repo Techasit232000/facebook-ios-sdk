@@ -1,20 +1,10 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
@@ -22,13 +12,13 @@
 
 #import <UIKit/UIKit.h>
 
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 #import <objc/runtime.h>
 
 #import "FBSDKCodelessPathComponent.h"
 #import "FBSDKEventBinding.h"
 #import "FBSDKEventLogging.h"
-#import "FBSDKSwizzling.h"
 #import "FBSDKViewHierarchy.h"
 #import "FBSDKViewHierarchyMacros.h"
 
@@ -40,15 +30,18 @@
 #define ReactNativeClassRCTTouchEvent "RCTTouchEvent"
 #define ReactNativeClassRCTTouchHandler "RCTTouchHandler"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 @interface FBSDKEventBindingManager ()
 
 @property (nonnull, nonatomic) id<FBSDKEventLogging> eventLogger;
 @property (nonnull, nonatomic) Class<FBSDKSwizzling> swizzler;
 @property (nonatomic) BOOL isStarted;
 @property (nullable, nonatomic) NSMutableDictionary<NSNumber *, id> *reactBindings;
-@property (nonnull, nonatomic) NSSet *validClasses;
+@property (nonnull, nonatomic) NSSet<Class> *validClasses;
 @property (nonatomic) BOOL hasReactNative;
-@property (nullable, nonatomic) NSArray *eventBindings;
+@property (nullable, nonatomic) NSArray<FBSDKEventBinding *> *eventBindings;
 
 @end
 
@@ -64,7 +57,7 @@
     _isStarted = NO;
     _reactBindings = [NSMutableDictionary dictionary];
 
-    NSMutableSet *classes = [NSMutableSet set];
+    NSMutableSet<Class> *classes = [NSMutableSet set];
     [classes addObject:UIControl.class];
     [classes addObject:UITableView.class];
     [classes addObject:UICollectionView.class];
@@ -95,8 +88,8 @@
                  eventLogger:(id<FBSDKEventLogging>)eventLogger
 {
   if ((self = [self initWithSwizzler:swizzler eventLogger:eventLogger])) {
-    NSArray *eventBindingsDict = [FBSDKTypeUtility arrayValue:dict[@"event_bindings"]];
-    NSMutableArray *bindings = [NSMutableArray array];
+    NSArray<NSDictionary<NSString *, id> *> *eventBindingsDict = [FBSDKTypeUtility arrayValue:dict[@"event_bindings"]];
+    NSMutableArray<FBSDKEventBinding *> *bindings = [NSMutableArray array];
     for (NSDictionary<NSString *, id> *d in eventBindingsDict) {
       FBSDKEventBinding *e = [[FBSDKEventBinding alloc] initWithJSON:d eventLogger:eventLogger];
       [FBSDKTypeUtility array:bindings addObject:e];
@@ -106,9 +99,9 @@
   return self;
 }
 
-- (NSArray *)parseArray:(NSArray *)array
+- (NSArray<FBSDKEventBinding *> *)parseArray:(NSArray<NSDictionary<NSString *, id> *> *)array
 {
-  NSMutableArray *result = [NSMutableArray array];
+  NSMutableArray<FBSDKEventBinding *> *result = [NSMutableArray array];
 
   for (NSDictionary<NSString *, id> *json in array) {
     FBSDKEventBinding *binding = [[FBSDKEventBinding alloc] initWithJSON:json
@@ -210,7 +203,7 @@
     return;
   }
 
-  NSArray *windows = UIApplication.sharedApplication.windows;
+  NSArray<__kindof UIWindow *> *windows = UIApplication.sharedApplication.windows;
   for (UIWindow *window in windows) {
     [self matchSubviewsIn:window];
   }
@@ -263,11 +256,11 @@
   __weak Class<FBSDKSwizzling> weakSwizzler = self.swizzler;
   __block BOOL hasReactNative = self.hasReactNative;
   fb_dispatch_on_main_thread(^{
-    if (![view window]) {
+    if (!view.window) {
       return;
     }
 
-    NSArray *path = [FBSDKViewHierarchy getPath:view];
+    NSArray<FBSDKCodelessPathComponent *> *path = [FBSDKViewHierarchy getPath:view];
 
     void (^matchBlock)(void) = ^void () {
       if ([view isKindOfClass:UIControl.class]) {
@@ -300,11 +293,11 @@
       } else if ([view isKindOfClass:UITableView.class]
                  && [delegate conformsToProtocol:@protocol(UITableViewDelegate)]) {
         void (^tableViewBlock)(void) = ^void () {
-          NSMutableSet *matchedBindings = [NSMutableSet set];
+          NSMutableSet<FBSDKEventBinding *> *matchedBindings = [NSMutableSet set];
           for (FBSDKEventBinding *binding in self->_eventBindings) {
             if (binding.path.count > 1) {
-              NSArray *shortPath = [binding.path
-                                    subarrayWithRange:NSMakeRange(0, binding.path.count - 1)];
+              NSArray<FBSDKCodelessPathComponent *> *shortPath = [binding.path
+                                                                  subarrayWithRange:NSMakeRange(0, binding.path.count - 1)];
               if ([FBSDKEventBinding isPath:shortPath matchViewPath:path]) {
                 [matchedBindings addObject:binding];
               }
@@ -312,7 +305,7 @@
           }
 
           if (matchedBindings.count > 0) {
-            NSArray *bindings = matchedBindings.allObjects;
+            NSArray<FBSDKEventBinding *> *bindings = matchedBindings.allObjects;
             void (^block)(id, SEL, id, id) = ^(id target, SEL command, UITableView *tableView, NSIndexPath *indexPath) {
               [self handleDidSelectRowWithBindings:bindings target:target command:command tableView:tableView indexPath:indexPath];
             };
@@ -322,7 +315,7 @@
                                     named:@"handle_table_view"];
           }
         };
-      #if FBTEST
+      #if DEBUG
         tableViewBlock();
       #else
         fb_dispatch_on_default_thread(tableViewBlock);
@@ -330,11 +323,11 @@
       } else if ([view isKindOfClass:UICollectionView.class]
                  && [delegate conformsToProtocol:@protocol(UICollectionViewDelegate)]) {
         void (^collectionViewBlock)(void) = ^void () {
-          NSMutableSet *matchedBindings = [NSMutableSet set];
+          NSMutableSet<FBSDKEventBinding *> *matchedBindings = [NSMutableSet set];
           for (FBSDKEventBinding *binding in self->_eventBindings) {
             if (binding.path.count > 1) {
-              NSArray *shortPath = [binding.path
-                                    subarrayWithRange:NSMakeRange(0, binding.path.count - 1)];
+              NSArray<FBSDKCodelessPathComponent *> *shortPath = [binding.path
+                                                                  subarrayWithRange:NSMakeRange(0, binding.path.count - 1)];
               if ([FBSDKEventBinding isPath:shortPath matchViewPath:path]) {
                 [matchedBindings addObject:binding];
               }
@@ -342,7 +335,7 @@
           }
 
           if (matchedBindings.count > 0) {
-            NSArray *bindings = matchedBindings.allObjects;
+            NSArray<FBSDKEventBinding *> *bindings = matchedBindings.allObjects;
             void (^block)(id, SEL, id, id) = ^(id target, SEL command, UICollectionView *collectionView, NSIndexPath *indexPath) {
               [self handleDidSelectItemWithBindings:bindings target:target command:command collectionView:collectionView indexPath:indexPath];
             };
@@ -352,7 +345,7 @@
                                     named:@"handle_collection_view"];
           }
         };
-      #if FBTEST
+      #if DEBUG
         collectionViewBlock();
       #else
         fb_dispatch_on_default_thread(collectionViewBlock);
@@ -360,7 +353,7 @@
       }
     };
 
-  #if FBTEST
+  #if DEBUG
     matchBlock();
   #else
     fb_dispatch_on_default_thread(matchBlock);
@@ -369,7 +362,7 @@
 }
 
 #pragma clang diagnostic pop
-- (void)updateBindings:(NSArray *)bindings
+- (void)updateBindings:(NSArray<FBSDKEventBinding *> *)bindings
 {
   if (self.eventBindings.count > 0 && self.eventBindings.count == bindings.count) {
     // Check whether event bindings are the same
@@ -420,9 +413,8 @@
             }
             targetView = targetView.superview;
           }
-          FBSDKEventBinding *eventBinding = self->_reactBindings[reactTag];
-          if (reactTag != nil && eventBinding != nil) {
-            [eventBinding trackEvent:nil];
+          if (reactTag != nil && self->_reactBindings[reactTag] != nil) {
+            [self->_reactBindings[reactTag] trackEvent:nil];
           }
         }
       }
@@ -472,12 +464,14 @@
   });
 }
 
-- (NSSet *)validClasses
+- (NSSet<Class> *)validClasses
 {
   return _validClasses;
 }
 
-#if DEBUG && FBTEST
+#pragma clang diagnostic pop
+
+#if DEBUG
 
 - (void)setReactBindings:(NSMutableDictionary<NSNumber *, id> *)bindings
 {

@@ -1,43 +1,33 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import Foundation
 import TestTools
 
 @objcMembers
-class SampleRawRemotePermissionList: NSObject {
+final class SampleRawRemotePermissionList: NSObject {
 
   static var missingPermissions: [String: Any] {
     [
       "data": [
         [
           "permission": nil,
-          "status": "granted"
+          "status": "granted",
         ],
         [
           "permission": nil,
-          "status": "declined"
+          "status": "declined",
         ],
         [
           "permission": nil,
-          "status": "expired"
-        ]
-      ]
+          "status": "expired",
+        ],
+      ],
     ]
   }
 
@@ -46,24 +36,24 @@ class SampleRawRemotePermissionList: NSObject {
       "data": [
         [
           "permission": "email",
-          "status": nil
-        ]
-      ]
+          "status": nil,
+        ],
+      ],
     ]
   }
 
   static let missingTopLevelKey: [String: Any] = [:]
 
-  static var randomValues: Any {
+  static var randomValues: [String: Any] {
     let json: Any = [
       "data": [
         [
           "permission": "foo",
-          "status": "granted"
-        ]
-      ]
+          "status": "granted",
+        ],
+      ],
     ]
-    return Fuzzer.randomize(json: json)
+    return Fuzzer.randomize(json: json) as? [String: Any] ?? [:]
   }
 
   static var validAllStatuses: [String: Any] {
@@ -71,17 +61,17 @@ class SampleRawRemotePermissionList: NSObject {
       "data": [
         [
           "permission": "email",
-          "status": "granted"
+          "status": "granted",
         ],
         [
           "permission": "birthday",
-          "status": "declined"
+          "status": "declined",
         ],
         [
           "permission": "first_name",
-          "status": "expired"
-        ]
-      ]
+          "status": "expired",
+        ],
+      ],
     ]
   }
 
@@ -93,19 +83,19 @@ class SampleRawRemotePermissionList: NSObject {
     let grantedPermissions = granted.map {
       [
         "permission": $0,
-        "status": "granted"
+        "status": "granted",
       ]
     }
     let declinedPermissions = declined.map {
       [
         "permission": $0,
-        "status": "declined"
+        "status": "declined",
       ]
     }
     let expiredPermissions = expired.map {
       [
         "permission": $0,
-        "status": "expired"
+        "status": "expired",
       ]
     }
     return ["data": grantedPermissions + expiredPermissions + declinedPermissions]
@@ -113,6 +103,6 @@ class SampleRawRemotePermissionList: NSObject {
 }
 
 @objcMembers
-class SampleRawRemotePermission: NSObject {
+final class SampleRawRemotePermission: NSObject {
   static let missingTopLevelKey: [String: Any] = [:]
 }

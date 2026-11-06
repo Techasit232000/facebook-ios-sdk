@@ -1,42 +1,34 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import TestTools
 import XCTest
 
-class ErrorConfigurationTests: XCTestCase {
+final class ErrorConfigurationTests: XCTestCase {
 
   let graphRequest = TestGraphRequest()
   let rawErrorCodeConfiguration = [
     [
       "name": "other",
-      "items": [["code": 190, "subcodes": [459]]]
+      "items": [["code": 190, "subcodes": [459]]],
     ],
     [
       "name": "login",
-      "items": [[ "code": 1, "subcodes": [12312]]],
+      "items": [["code": 1, "subcodes": [12312]]],
       "recovery_message": "somemessage",
-      "recovery_options": ["Yes", "No thanks"]
+      "recovery_options": ["Yes", "No thanks"],
     ],
   ]
 
-  func testErrorConfigurationDefaults() { // swiftlint:disable:this function_body_length
-    let configuration = ErrorConfiguration(dictionary: nil)
+  func testErrorConfigurationDefaults() {
+    let configuration = _ErrorConfiguration(dictionary: nil)
 
     XCTAssertEqual(
       .transient,
@@ -110,20 +102,17 @@ class ErrorConfigurationTests: XCTestCase {
     )
   }
 
-  func testErrorConfigurationAdditonalArray() throws { // swiftlint:disable:this function_body_length
-    let intermediaryConfiguration = ErrorConfiguration(dictionary: nil)
+  func testErrorConfigurationAdditonalArray() throws {
+    let intermediaryConfiguration = _ErrorConfiguration(dictionary: nil)
     intermediaryConfiguration.update(with: rawErrorCodeConfiguration)
-    let data = NSKeyedArchiver.archivedData(
-      withRootObject: intermediaryConfiguration)
+    let data = try NSKeyedArchiver.archivedData(
+      withRootObject: intermediaryConfiguration,
+      requiringSecureCoding: true
+    )
 
-    var configuration = NSKeyedUnarchiver.unarchiveObject(
-      with: data
-    ) as! ErrorConfiguration // swiftlint:disable:this force_cast
-    if #available(iOS 11.0, *) {
-      configuration = try NSKeyedUnarchiver.unarchivedObject(
-        ofClass: ErrorConfiguration.self, from: data
-      )! // swiftlint:disable:this force_unwrapping
-    }
+    let configuration = try NSKeyedUnarchiver.unarchivedObject(
+      ofClass: _ErrorConfiguration.self, from: data
+    )! // swiftlint:disable:this force_unwrapping
     XCTAssertEqual(
       .transient,
       configuration.recoveryConfiguration(
@@ -182,64 +171,64 @@ class ErrorConfigurationTests: XCTestCase {
   }
 
   func testParsingRandomName() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": Fuzzer.random,
-          "items": [[ "code": 190, "subcodes": [459] ]],
+          "items": [["code": 190, "subcodes": [459]]],
         ],
         [
           "name": "login",
-          "items": [[ "code": 1, "subcodes": [12312] ]],
+          "items": [["code": 1, "subcodes": [12312]]],
           "recovery_message": "somemessage",
-          "recovery_options": ["Yes", "No thanks"]
+          "recovery_options": ["Yes", "No thanks"],
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
   func testParsingRandomSubcodes() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": "other",
-          "items": [[ "code": 190, "subcodes": [Fuzzer.random]]]
+          "items": [["code": 190, "subcodes": [Fuzzer.random]]],
         ],
         [
           "name": "login",
           "items": [["code": 1, "subcodes": [Fuzzer.random]]],
           "recovery_message": "somemessage",
-          "recovery_options": ["Yes", "No thanks"]
+          "recovery_options": ["Yes", "No thanks"],
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
   func testParsingRandomCodes() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": "other",
-          "items": [[ "code": Fuzzer.random, "subcodes": [459] ]],
+          "items": [["code": Fuzzer.random, "subcodes": [459]]],
         ],
         [
           "name": "login",
-          "items": [[ "code": Fuzzer.random, "subcodes": [12312] ]],
+          "items": [["code": Fuzzer.random, "subcodes": [12312]]],
           "recovery_message": "somemessage",
-          "recovery_options": ["Yes", "No thanks"]
+          "recovery_options": ["Yes", "No thanks"],
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
   func testParsingRandomItemDictionaries() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": "other",
@@ -249,76 +238,122 @@ class ErrorConfigurationTests: XCTestCase {
           "name": "login",
           "items": Fuzzer.random,
           "recovery_message": "somemessage",
-          "recovery_options": ["Yes", "No thanks"]
+          "recovery_options": ["Yes", "No thanks"],
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
   func testParsingRandomRecoveryOptionsArray() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": "other",
-          "items": [[ "code": 190, "subcodes": [459] ]],
+          "items": [["code": 190, "subcodes": [459]]],
         ],
         [
           "name": "login",
-          "items": [[ "code": 1, "subcodes": [12312] ]],
+          "items": [["code": 1, "subcodes": [12312]]],
           "recovery_message": "somemessage",
-          "recovery_options": [Fuzzer.random, Fuzzer.random]
+          "recovery_options": [Fuzzer.random, Fuzzer.random],
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
   func testParsingRandomRecoveryOptions() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": "other",
-          "items": [[ "code": 190, "subcodes": [459] ]],
+          "items": [["code": 190, "subcodes": [459]]],
         ],
         [
           "name": "login",
-          "items": [[ "code": 1, "subcodes": [12312] ]],
+          "items": [["code": 1, "subcodes": [12312]]],
           "recovery_message": "somemessage",
-          "recovery_options": Fuzzer.random
+          "recovery_options": Fuzzer.random,
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
   func testParsingRecoveryMessageWithoutOptions() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let array = [
         [
           "name": "other",
-          "items": [[ "code": 190, "subcodes": [459] ]],
+          "items": [["code": 190, "subcodes": [459]]],
         ],
         [
           "name": "login",
-          "items": [[ "code": 1, "subcodes": [12312] ]],
+          "items": [["code": 1, "subcodes": [12312]]],
           "recovery_message": "somemessage",
-          "recovery_options": ["Yes", "No thanks"]
+          "recovery_options": ["Yes", "No thanks"],
         ],
       ]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }
 
+  func testCopyReturnsIndependentInstance() {
+    let original = _ErrorConfiguration(dictionary: nil)
+    original.update(with: rawErrorCodeConfiguration)
+    let copy = original.copy() as! _ErrorConfiguration // swiftlint:disable:this force_cast
+
+    // Copy should preserve the same error mappings
+    XCTAssertEqual(
+      .other,
+      copy.recoveryConfiguration(
+        forCode: "190",
+        subcode: "459",
+        request: graphRequest
+      )?.errorCategory
+    )
+
+    // Mutating the copy should not affect the original
+    let additionalConfig: [[String: Any]] = [
+      [
+        "name": "transient",
+        "items": [["code": 190, "subcodes": [459]]],
+      ],
+    ]
+    copy.update(with: additionalConfig)
+
+    // Original should still have the old value
+    XCTAssertEqual(
+      .other,
+      original.recoveryConfiguration(
+        forCode: "190",
+        subcode: "459",
+        request: graphRequest
+      )?.errorCategory,
+      "Mutating a copy should not affect the original"
+    )
+
+    // Copy should have the updated value
+    XCTAssertEqual(
+      .transient,
+      copy.recoveryConfiguration(
+        forCode: "190",
+        subcode: "459",
+        request: graphRequest
+      )?.errorCategory
+    )
+  }
+
   func testParsingRandomEntries() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       // swiftlint:disable:next force_cast
       let array = Fuzzer.randomize(json: rawErrorCodeConfiguration) as! [[String: Any]]
-      let configuration = ErrorConfiguration(dictionary: nil)
+      let configuration = _ErrorConfiguration(dictionary: nil)
       configuration.update(with: array)
     }
   }

@@ -1,85 +1,95 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
-class FeatureManagerTests: XCTestCase {
+final class FeatureManagerTests: XCTestCase {
 
-  var manager = FeatureManager()
-  var store = UserDefaultsSpy()
-  let settings = TestSettings()
+  // swiftlint:disable implicitly_unwrapped_optional
+  var manager: _FeatureManager!
+  var settings: TestSettings!
+  var store: UserDefaultsSpy!
   let userDefaultsPrefix = "com.facebook.sdk:FBSDKFeatureManager.FBSDKFeature"
   let gatekeeperKeyPrefix = "FBSDKFeature"
-
-  override class func setUp() {
-    super.setUp()
-
-    TestGateKeeperManager.reset()
-    FeatureManager.reset()
-  }
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
 
-    manager.configure(
-      gateKeeperManager: TestGateKeeperManager.self,
-      settings: settings,
-      store: store
+    TestGateKeeperManager.reset()
+    settings = TestSettings()
+    store = UserDefaultsSpy()
+
+    manager = _FeatureManager()
+    _FeatureManager.setDependencies(
+      .init(
+        gateKeeperManager: TestGateKeeperManager.self,
+        settings: settings,
+        store: store
+      )
     )
   }
 
   override func tearDown() {
     super.tearDown()
 
+    _FeatureManager.resetDependencies()
     TestGateKeeperManager.reset()
-    FeatureManager.reset()
+    settings = nil
+    store = nil
+    manager = nil
   }
 
-  func testCreatingWithDefaults() {
-    XCTAssertNil(
-      FeatureManager.shared.gateKeeperManager,
-      "Should not have a gatekeeper manager by default"
+  func testDefaultTypeDependencies() throws {
+    _FeatureManager.resetDependencies()
+    let dependencies = try _FeatureManager.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.gateKeeperManager as AnyObject,
+      _GateKeeperManager.self,
+      .defaultDependency("the gatekeeper manager", for: "gatekeeper managing")
     )
-    XCTAssertNil(
-      FeatureManager.shared.settings,
-      "Should not have settings by default"
+
+    XCTAssertIdentical(
+      dependencies.settings as AnyObject,
+      Settings.shared,
+      .defaultDependency("the shared settings", for: "settings sharing")
     )
-    XCTAssertNil(
-      FeatureManager.shared.store,
-      "Should not have a persistent data store by default"
+
+    XCTAssertIdentical(
+      dependencies.store as AnyObject,
+      UserDefaults.standard,
+      .defaultDependency("the shared user defaults", for: "data persisting")
     )
   }
 
-  func testCreatingWithCustomDependencies() {
-    XCTAssertTrue(
-      manager.gateKeeperManager is TestGateKeeperManager.Type,
-      "Should create with the provided gatekeeper manager"
+  func testCustomTypeDependencies() throws {
+    let dependencies = try _FeatureManager.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.gateKeeperManager as AnyObject,
+      TestGateKeeperManager.self,
+      .customDependency(for: "gatekeeper managing")
     )
-    XCTAssertTrue(
-      manager.settings === settings,
-      "Should create with the provided settings"
+
+    XCTAssertIdentical(
+      dependencies.settings as AnyObject,
+      settings,
+      .customDependency(for: "settings sharing")
     )
-    XCTAssertEqual(
-      manager.store as? UserDefaultsSpy,
+
+    XCTAssertIdentical(
+      dependencies.store as AnyObject,
       store,
-      "Should create with the provided persistent data store"
+      .customDependency(for: "data persisting")
     )
   }
 
@@ -111,7 +121,7 @@ class FeatureManagerTests: XCTestCase {
       (.instrument, "Instrument"),
       (.login, "LoginKit"),
       (.share, "ShareKit"),
-      (.gamingServices, "GamingServicesKit")
+      (.gamingServices, "GamingServicesKit"),
     ]
     testData.forEach { data in
       manager.check(data.feature) { _ in }
@@ -149,7 +159,7 @@ class FeatureManagerTests: XCTestCase {
       (.ateLogging, "AppEvents", "ATELogging"),
       (.crashReport, "Instrument", "CrashReport"),
       (.crashShield, "Instrument", "CrashShield"),
-      (.errorReport, "Instrument", "ErrorReport")
+      (.errorReport, "Instrument", "ErrorReport"),
     ]
     testData.forEach { data in
       manager.check(data.feature) { _ in }
@@ -192,7 +202,7 @@ class FeatureManagerTests: XCTestCase {
       (.ateLogging, "ATELogging"),
       (.crashReport, "CrashReport"),
       (.crashShield, "CrashShield"),
-      (.errorReport, "ErrorReport")
+      (.errorReport, "ErrorReport"),
     ]
     testData.forEach { data in
       var capturedKey: String?
@@ -230,16 +240,94 @@ class FeatureManagerTests: XCTestCase {
       .suggestedEvents,
       .intelligentIntegrity,
       .eventDeactivation,
-      .skAdNetworkConversionValue
+      .skAdNetworkConversionValue,
     ]
 
     testData.forEach { featureName in
       manager.disableFeature(featureName)
-      let featureString = FeatureManager.featureName(featureName)
+      let featureString = _FeatureManager.shared.featureName(for: featureName)
       XCTAssertEqual(
         store.capturedSetObjectKey,
         userDefaultsPrefix + featureString
       )
     }
+  }
+
+  func testResolvesAgainstARealGateKeeperPayload() {
+    // The other tests here use a gate keeper double, which answers whatever key it is asked
+    // for and so cannot notice a wrong key. This drives the real `_GateKeeperManager` with the
+    // payload shape `{app-id}/mobile_sdk_gk` actually returns, so the whole chain runs:
+    // featureName(for:) -> "FBSDKFeature" + name -> a lookup that only succeeds if the name
+    // matches what the server publishes. Before this fix both features resolved the key
+    // "FBSDKFeatureNONE", which is absent from any payload, and fell back to false.
+    _GateKeeperManager.reset()
+    _GateKeeperManager.parse(
+      result: [
+        "data": [
+          [
+            "gatekeepers": [
+              // FBSDKFeatureAppEvents is deliberately absent: the real payload does not
+              // include it, and the grandparent resolves through defaultStatus(for:) instead.
+              ["key": "FBSDKFeaturePrivacyProtection", "value": true],
+              ["key": "FBSDKFeatureStdParamEnforcement", "value": true],
+              ["key": "FBSDKFeatureBannedParamFiltering", "value": true],
+            ],
+          ],
+        ],
+      ],
+      error: nil
+    )
+
+    _FeatureManager.setDependencies(
+      .init(
+        gateKeeperManager: _GateKeeperManager.self,
+        settings: settings,
+        store: store
+      )
+    )
+
+    XCTAssertTrue(
+      manager.isEnabled(.stdParamEnforcement),
+      "Should resolve FBSDKFeatureStdParamEnforcement from the payload, not a key that is absent from it"
+    )
+    XCTAssertTrue(
+      manager.isEnabled(.bannedParamFiltering),
+      "Should resolve FBSDKFeatureBannedParamFiltering from the payload, not a key that is absent from it"
+    )
+
+    _GateKeeperManager.reset()
+  }
+
+  func testFeatureNamesMatchTheirGateKeepers() {
+    // The gate keeper key is "FBSDKFeature" + featureName(for:), so a feature that is
+    // missing from that switch falls through to "NONE" and reads a gate keeper that does
+    // not exist -- returning the default rather than the server's value, silently. These
+    // two did exactly that, and were off on iOS while enabled server side.
+    let expected: [(SDKFeature, String)] = [
+      (.stdParamEnforcement, "StdParamEnforcement"),
+      (.bannedParamFiltering, "BannedParamFiltering"),
+    ]
+
+    for (feature, name) in expected {
+      XCTAssertEqual(
+        _FeatureManager.shared.featureName(for: feature),
+        name,
+        "\(name) must resolve to its own gate keeper, not fall through to NONE"
+      )
+    }
+  }
+}
+
+// swiftformat:disable extensionaccesscontrol
+
+// MARK: - Assumptions
+
+fileprivate extension String {
+  static func defaultDependency(_ dependency: String, for type: String) -> String {
+    "The _FeatureManager type uses \(dependency) as its \(type) dependency by default"
+  }
+
+  static func customDependency(for type: String) -> String {
+    "The _FeatureManager type uses a custom \(type) dependency when provided"
   }
 }

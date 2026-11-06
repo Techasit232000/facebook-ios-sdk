@@ -1,26 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
- #import <Foundation/Foundation.h>
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
+#import <Foundation/Foundation.h>
 
- #import "FBSDKAppLinkUtility.h"
+#import "FBSDKAppLinkUtility.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -31,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FBSDKSettings;
 @protocol FBSDKAppEventsConfigurationProviding;
 @protocol FBSDKAdvertiserIDProviding;
+@protocol FBSDKAppLinkURLCreating;
 
 @interface FBSDKAppLinkUtility (Internal)
 
@@ -41,15 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, nullable, nonatomic) id<FBSDKAdvertiserIDProviding> advertiserIDProvider;
 @property (class, nullable, nonatomic) id<FBSDKAppEventDropDetermining> appEventsDropDeterminer;
 @property (class, nullable, nonatomic) id<FBSDKAppEventParametersExtracting> appEventParametersExtractor;
-
-+ (void)configureWithGraphRequestFactory:(id<FBSDKGraphRequestFactory>)graphRequestFactory
-                  infoDictionaryProvider:(id<FBSDKInfoDictionaryProviding>)infoDictionaryProvider
-                                settings:(id<FBSDKSettings>)settings
-          appEventsConfigurationProvider:(id<FBSDKAppEventsConfigurationProviding>)appEventsConfigurationProvider
-                    advertiserIDProvider:(id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
-                 appEventsDropDeterminer:(id<FBSDKAppEventDropDetermining>)appEventsDropDeterminer
-             appEventParametersExtractor:(id<FBSDKAppEventParametersExtracting>)appEventParametersExtractor
-NS_SWIFT_NAME(configure(graphRequestFactory:infoDictionaryProvider:settings:appEventsConfigurationProvider:advertiserIDProvider:appEventsDropDeterminer:appEventParametersExtractor:));
+@property (class, nullable, nonatomic) id<FBSDKAppLinkURLCreating> appLinkURLFactory;
+@property (class, nullable, nonatomic) id<FBSDKUserIDProviding> userIDProvider;
+@property (class, nullable, nonatomic) id<FBSDKUserDataPersisting> userDataStore;
 
 @end
 

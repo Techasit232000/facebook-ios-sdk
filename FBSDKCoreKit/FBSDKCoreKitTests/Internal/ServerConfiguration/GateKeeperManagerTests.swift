@@ -1,27 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
-// swiftlint:disable file_length
-class GateKeeperManagerTests: XCTestCase {
+final class GateKeeperManagerTests: XCTestCase {
 
   let graphRequestFactory = TestGraphRequestFactory()
   let connection = TestGraphRequestConnection()
@@ -34,7 +24,7 @@ class GateKeeperManagerTests: XCTestCase {
     super.setUp()
 
     graphRequestConnectionFactory.stubbedConnection = connection
-    GateKeeperManager.configure(
+    _GateKeeperManager.configure(
       settings: settings,
       graphRequestFactory: graphRequestFactory,
       graphRequestConnectionFactory: graphRequestConnectionFactory,
@@ -46,76 +36,76 @@ class GateKeeperManagerTests: XCTestCase {
     super.tearDown()
 
     settings.reset()
-    GateKeeperManager.reset()
+    _GateKeeperManager.reset()
   }
 
   // MARK: - Dependencies
 
   func testDefaultDependencies() {
-    GateKeeperManager.reset()
+    _GateKeeperManager.reset()
 
     XCTAssertNil(
-      GateKeeperManager.graphRequestFactory,
+      _GateKeeperManager.graphRequestFactory,
       "Should not have a graph request factory by default"
     )
     XCTAssertNil(
-      GateKeeperManager.graphRequestConnectionFactory,
+      _GateKeeperManager.graphRequestConnectionFactory,
       "Should not have a graph request connection factory by default"
     )
     XCTAssertNil(
-      GateKeeperManager.settings,
+      _GateKeeperManager.settings,
       "Should not have settings by default"
     )
     XCTAssertNil(
-      GateKeeperManager.store,
+      _GateKeeperManager.store,
       "Should not have a data store by default"
     )
   }
 
   func testConfiguringWithDependencies() {
-    XCTAssertTrue(GateKeeperManager.graphRequestFactory === graphRequestFactory)
-    XCTAssertTrue(GateKeeperManager.graphRequestConnectionFactory === graphRequestConnectionFactory)
-    XCTAssertTrue(GateKeeperManager.store === store)
+    XCTAssertIdentical(_GateKeeperManager.graphRequestFactory, graphRequestFactory)
+    XCTAssertIdentical(_GateKeeperManager.graphRequestConnectionFactory, graphRequestConnectionFactory)
+    XCTAssertIdentical(_GateKeeperManager.store, store)
   }
 
   // MARK: - Gatekeeper Validity
 
   func testValidityWithUnfinishedRequeryWithInvalidTimestamp() {
-    GateKeeperManager.requeryFinishedForAppStart = false
-    GateKeeperManager.timestamp = Date.distantPast
+    _GateKeeperManager.requeryFinishedForAppStart = false
+    _GateKeeperManager.timestamp = Date.distantPast
 
     XCTAssertFalse(
-      GateKeeperManager._gateKeeperIsValid(),
+      _GateKeeperManager._gateKeeperIsValid(),
       "A gatekeeper with an unfinished requery and an invalid timestamp is not valid"
     )
   }
 
   func testValidityWithUnfinishedRequeryWithValidTimestamp() {
-    GateKeeperManager.requeryFinishedForAppStart = false
-    GateKeeperManager.timestamp = Date()
+    _GateKeeperManager.requeryFinishedForAppStart = false
+    _GateKeeperManager.timestamp = Date()
 
     XCTAssertFalse(
-      GateKeeperManager._gateKeeperIsValid(),
+      _GateKeeperManager._gateKeeperIsValid(),
       "A gatekeeper with an unfinished requery and a valid timestamp is not valid"
     )
   }
 
   func testValidityWithFinishedRequeryWithInvalidTimestamp() {
-    GateKeeperManager.requeryFinishedForAppStart = true
-    GateKeeperManager.timestamp = Date.distantPast
+    _GateKeeperManager.requeryFinishedForAppStart = true
+    _GateKeeperManager.timestamp = Date.distantPast
 
     XCTAssertFalse(
-      GateKeeperManager._gateKeeperIsValid(),
+      _GateKeeperManager._gateKeeperIsValid(),
       "A gatekeeper with a finished requery and an invalid timestamp is not valid"
     )
   }
 
   func testValidityWithFinishedRequeryWithValidTimestamp() {
-    GateKeeperManager.requeryFinishedForAppStart = true
-    GateKeeperManager.timestamp = Date()
+    _GateKeeperManager.requeryFinishedForAppStart = true
+    _GateKeeperManager.timestamp = Date()
 
     XCTAssertTrue(
-      GateKeeperManager._gateKeeperIsValid(),
+      _GateKeeperManager._gateKeeperIsValid(),
       "A gatekeeper with a finished requery and a valid timestamp is valid"
     )
   }
@@ -123,26 +113,26 @@ class GateKeeperManagerTests: XCTestCase {
   // MARK: - Loading Gatekeepers
 
   func testLoadingGateKeepersBeforeConfiguring() {
-    GateKeeperManager.reset()
+    _GateKeeperManager.reset()
 
-    GateKeeperManager.loadGateKeepers { _ in
+    _GateKeeperManager.loadGateKeepers { _ in
       XCTFail("Should not invoke the completion when exiting early")
     }
   }
 
   func testLoadingGateKeepersWithoutAppIdWithoutCompletion() {
     settings.appID = nil
-    GateKeeperManager.gateKeepers = ["foo": "true"]
-    GateKeeperManager.loadGateKeepers(nil)
+    _GateKeeperManager.gateKeepers = ["foo": "true"]
+    _GateKeeperManager.loadGateKeepers(nil)
     XCTAssertNil(
-      GateKeeperManager.gateKeepers,
+      _GateKeeperManager.gateKeepers,
       "Should clear existing gatekeepers when trying to load without an app id"
     )
   }
 
   func testLoadingGateKeepersWithoutAppIdWithCompletion() {
     var didInvokeCompletion = false
-    GateKeeperManager.loadGateKeepers { potentialError in
+    _GateKeeperManager.loadGateKeepers { potentialError in
       XCTAssertNil(
         potentialError,
         "Should complete without error if the app id is missing"
@@ -154,10 +144,10 @@ class GateKeeperManagerTests: XCTestCase {
 
   func testLoadingGateKeepersWhenValid() {
     settings.appID = name
-    self.updateGateKeeperValidity(isValid: true)
+    updateGateKeeperValidity(isValid: true)
 
     var didInvokeCompletion = false
-    GateKeeperManager.loadGateKeepers { potentialError in
+    _GateKeeperManager.loadGateKeepers { potentialError in
       XCTAssertNil(
         potentialError,
         "Should complete without error if the gatekeeper is valid"
@@ -177,29 +167,29 @@ class GateKeeperManagerTests: XCTestCase {
 
   func testLoadingGateKeepersWhenInvalidWhenNotCurrentlyLoading() {
     settings.appID = name
-    GateKeeperManager.gateKeepers = ["foo": "true"]
-    self.updateGateKeeperValidity(isValid: false)
+    _GateKeeperManager.gateKeepers = ["foo": "true"]
+    updateGateKeeperValidity(isValid: false)
 
-    GateKeeperManager.loadGateKeepers { _ in
+    _GateKeeperManager.loadGateKeepers { _ in
       XCTFail("Should not invoke completion")
     }
-    XCTAssertTrue(GateKeeperManager.isLoadingGateKeepers, "Should track when loading is in progress")
+    XCTAssertTrue(_GateKeeperManager.isLoadingGateKeepers, "Should track when loading is in progress")
     validateGraphRequest(
       connection.capturedRequest,
-      isEqualTo: GateKeeperManager.requestToLoadGateKeepers()
+      isEqualTo: _GateKeeperManager.requestToLoadGateKeepers()
     )
   }
 
   func testLoadingGateKeepersWhenInvalidWhenCurrentlyLoading() {
     settings.appID = name
-    GateKeeperManager.gateKeepers = ["foo": "true"]
-    self.updateGateKeeperValidity(isValid: false)
+    _GateKeeperManager.gateKeepers = ["foo": "true"]
+    updateGateKeeperValidity(isValid: false)
 
     var completionCallCount = 0
-    GateKeeperManager.loadGateKeepers { _ in
+    _GateKeeperManager.loadGateKeepers { _ in
       completionCallCount += 1
     }
-    GateKeeperManager.loadGateKeepers { _ in
+    _GateKeeperManager.loadGateKeepers { _ in
       completionCallCount += 1
     }
 
@@ -214,19 +204,22 @@ class GateKeeperManagerTests: XCTestCase {
     XCTAssertEqual(completionCallCount, 2, "Should invoke all pending completions when the request finishes")
   }
 
-  func testLoadingGateKeepersWithNonEmptyStore() {
+  func testLoadingGateKeepersWithNonEmptyStore() throws {
     settings.appID = name
 
-    let data = NSKeyedArchiver.archivedData(withRootObject: SampleRawRemoteGatekeeper.validEnabled)
+    let data = try NSKeyedArchiver.archivedData(
+      withRootObject: SampleRawRemoteGatekeeper.validEnabled,
+      requiringSecureCoding: true
+    )
     store.setValue(data, forKey: storeIdentifierPrefix + name)
 
-    GateKeeperManager.loadGateKeepers(nil)
+    _GateKeeperManager.loadGateKeepers(nil)
 
     XCTAssertEqual(
-      GateKeeperManager.gateKeepers as NSDictionary?,
+      _GateKeeperManager.gateKeepers as NSDictionary?,
       [
         "key": "foo",
-        "value": true
+        "value": true,
       ],
       "Loading gatekeepers should update local gatekeepers with those from the persistent store"
     )
@@ -236,7 +229,7 @@ class GateKeeperManagerTests: XCTestCase {
 
   func testUsesAppIdentifierForRetrieval() {
     settings.appID = name
-    GateKeeperManager.loadGateKeepers(nil)
+    _GateKeeperManager.loadGateKeepers(nil)
 
     XCTAssertEqual(
       store.capturedObjectRetrievalKey,
@@ -247,10 +240,10 @@ class GateKeeperManagerTests: XCTestCase {
 
   func testInitialDataForCurrentAppIdentifier() {
     settings.appID = name
-    GateKeeperManager.loadGateKeepers(nil)
+    _GateKeeperManager.loadGateKeepers(nil)
 
     XCTAssertNil(
-      GateKeeperManager.gateKeepers,
+      _GateKeeperManager.gateKeepers,
       "Should not have gatekeepers for the current app identifier by default"
     )
   }
@@ -262,21 +255,21 @@ class GateKeeperManagerTests: XCTestCase {
     let version = "bar"
     settings.appID = appIdentifier
     settings.sdkVersion = version
-    _ = GateKeeperManager.requestToLoadGateKeepers()
+    _ = _GateKeeperManager.requestToLoadGateKeepers()
 
     XCTAssertEqual(
       graphRequestFactory.capturedGraphPath,
       "\(appIdentifier)/mobile_sdk_gk",
       "Should use the app identifier from the settings"
     )
-    XCTAssertEqual(graphRequestFactory.capturedParameters["platform"] as? String, "ios")
+    XCTAssertEqual(graphRequestFactory.capturedParameters?["platform"] as? String, "ios")
     XCTAssertEqual(
-      graphRequestFactory.capturedParameters["sdk_version"] as? String,
+      graphRequestFactory.capturedParameters?["sdk_version"] as? String,
       version,
       "Should use the sdk version from the settings"
     )
     XCTAssertEqual(
-      graphRequestFactory.capturedParameters["fields"] as? String,
+      graphRequestFactory.capturedParameters?["fields"] as? String,
       "gatekeepers",
       "Should request the expected fields"
     )
@@ -285,7 +278,7 @@ class GateKeeperManagerTests: XCTestCase {
       "The gate keepers request should be tokenless"
     )
     XCTAssertNil(
-      graphRequestFactory.capturedHttpMethod,
+      graphRequestFactory.capturedHTTPMethod,
       "Should not provide an explicit http method"
     )
     XCTAssertEqual(
@@ -298,10 +291,10 @@ class GateKeeperManagerTests: XCTestCase {
   // MARK: - Parsing Results
 
   func testParsingResponseFinishesFetch() {
-    GateKeeperManager.isLoadingGateKeepers = true
-    GateKeeperManager.parse(result: nil, error: nil)
+    _GateKeeperManager.isLoadingGateKeepers = true
+    _GateKeeperManager.parse(result: nil, error: nil)
     XCTAssertFalse(
-      GateKeeperManager.isLoadingGateKeepers,
+      _GateKeeperManager.isLoadingGateKeepers,
       "Parsing the response should indicate that the fetch is completed"
     )
   }
@@ -311,45 +304,45 @@ class GateKeeperManagerTests: XCTestCase {
     updateGateKeeperValidity(isValid: false)
     let error = SampleError() as NSError
 
-    GateKeeperManager.loadGateKeepers { potentialError in
+    _GateKeeperManager.loadGateKeepers { potentialError in
       XCTAssertEqual(potentialError as NSError?, error, "Should complete with any errors from parsing")
     }
 
-    GateKeeperManager.parse(result: nil, error: error)
+    _GateKeeperManager.parse(result: nil, error: error)
   }
 
   func testParsingWithMissingGateKeepers() {
-    GateKeeperManager.parse(result: SampleRawRemoteGatekeeperList.missingGatekeepers, error: nil)
+    _GateKeeperManager.parse(result: SampleRawRemoteGatekeeperList.missingGatekeepers, error: nil)
 
     XCTAssertNil(
-      GateKeeperManager.gateKeepers,
+      _GateKeeperManager.gateKeepers,
       "Should not parse gatekeepers from a response missing the gatekeepers key"
     )
   }
 
   func testParsingWithEmptyGateKeepers() {
-    GateKeeperManager.parse(result: SampleRawRemoteGatekeeperList.emptyGatekeepers, error: nil)
+    _GateKeeperManager.parse(result: SampleRawRemoteGatekeeperList.emptyGatekeepers, error: nil)
 
     XCTAssertEqual(
-      GateKeeperManager.gateKeepers as NSDictionary?,
+      _GateKeeperManager.gateKeepers as NSDictionary?,
       [:],
       "Should not parse gatekeepers from an empty list"
     )
   }
 
   func testParsingWithValidGateKeepers() {
-    GateKeeperManager.parse(
+    _GateKeeperManager.parse(
       result: SampleRawRemoteGatekeeperList.validHeterogeneous,
       error: nil
     )
 
     let expected = [
       "foo": true,
-      "bar": false
+      "bar": false,
     ] as NSDictionary
 
     XCTAssertEqual(
-      GateKeeperManager.gateKeepers as NSDictionary?,
+      _GateKeeperManager.gateKeepers as NSDictionary?,
       expected,
       "Should parse gatekeepers from a valid response"
     )
@@ -357,7 +350,7 @@ class GateKeeperManagerTests: XCTestCase {
 
   func testParsingWithValidGateKeepersCaches() {
     settings.appID = name
-    GateKeeperManager.parse(
+    _GateKeeperManager.parse(
       result: SampleRawRemoteGatekeeperList.validHeterogeneous,
       error: nil
     )
@@ -370,27 +363,27 @@ class GateKeeperManagerTests: XCTestCase {
   }
 
   func testParsingWithRandomizedResults() {
-    (1...100).forEach { _ in
+    (1 ... 100).forEach { _ in
       let result = Fuzzer.randomize(json: SampleRawRemoteGatekeeperList.valid)
-      GateKeeperManager.parse(result: result, error: nil)
+      _GateKeeperManager.parse(result: result, error: nil)
     }
   }
 
   // MARK: - Retrieval
 
   func testRetrievingWithMissingAppID() {
-    GateKeeperManager.gateKeepers = [name: false]
-    GateKeeperManager.bool(forKey: name, defaultValue: true)
+    _GateKeeperManager.gateKeepers = [name: false]
+    _GateKeeperManager.bool(forKey: name, defaultValue: true)
 
     XCTAssertNil(
-      GateKeeperManager.gateKeepers,
+      _GateKeeperManager.gateKeepers,
       "Retrieving gatekeepers without an app id should remove the stored gatekeepers"
     )
   }
 
   func testRetrievingGateKeeperTriggersLoading() {
     settings.appID = name
-    GateKeeperManager.bool(forKey: "foo", defaultValue: false)
+    _GateKeeperManager.bool(forKey: "foo", defaultValue: false)
     XCTAssertNotNil(
       store.capturedObjectRetrievalKey,
       "Retrieving a gatekeeper should load gatekeepers"
@@ -399,19 +392,19 @@ class GateKeeperManagerTests: XCTestCase {
 
   func testRetrievingMissingGateKeeper() {
     settings.appID = name
-    XCTAssertTrue(GateKeeperManager.bool(forKey: name, defaultValue: true))
-    XCTAssertFalse(GateKeeperManager.bool(forKey: name, defaultValue: false))
+    XCTAssertTrue(_GateKeeperManager.bool(forKey: name, defaultValue: true))
+    XCTAssertFalse(_GateKeeperManager.bool(forKey: name, defaultValue: false))
 
     settings.appID = nil
-    XCTAssertTrue(GateKeeperManager.bool(forKey: name, defaultValue: true))
-    XCTAssertFalse(GateKeeperManager.bool(forKey: name, defaultValue: false))
+    XCTAssertTrue(_GateKeeperManager.bool(forKey: name, defaultValue: true))
+    XCTAssertFalse(_GateKeeperManager.bool(forKey: name, defaultValue: false))
   }
 
   func testRetrievingGateKeeperWithAppID() {
     settings.appID = name
-    GateKeeperManager.gateKeepers = [name: false]
+    _GateKeeperManager.gateKeepers = [name: false]
     XCTAssertFalse(
-      GateKeeperManager.bool(forKey: name, defaultValue: true),
+      _GateKeeperManager.bool(forKey: name, defaultValue: true),
       "Should return the stored gatekeeper value for the matching key and ignore the default value"
     )
   }
@@ -420,11 +413,11 @@ class GateKeeperManagerTests: XCTestCase {
 
   func updateGateKeeperValidity(isValid: Bool) {
     if isValid {
-      GateKeeperManager.requeryFinishedForAppStart = true
-      GateKeeperManager.timestamp = Date()
+      _GateKeeperManager.requeryFinishedForAppStart = true
+      _GateKeeperManager.timestamp = Date()
     } else {
-      GateKeeperManager.requeryFinishedForAppStart = false
-      GateKeeperManager.timestamp = Date.distantPast
+      _GateKeeperManager.requeryFinishedForAppStart = false
+      _GateKeeperManager.timestamp = Date.distantPast
     }
   }
 

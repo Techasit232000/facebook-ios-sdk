@@ -1,36 +1,21 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
 #import "FBSDKAppLinkUtility+Internal.h"
 
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
-#import "FBSDKAdvertiserIDProviding.h"
-#import "FBSDKAppEventDropDetermining.h"
-#import "FBSDKAppEventParametersExtracting.h"
-#import "FBSDKAppEventsConfigurationProviding.h"
 #import "FBSDKGraphRequestFactoryProtocol.h"
 #import "FBSDKGraphRequestHTTPMethod.h"
 #import "FBSDKGraphRequestProtocol.h"
-#import "FBSDKSettingsProtocol.h"
-#import "FBSDKURL.h"
 
 static NSString *const FBSDKLastDeferredAppLink = @"com.facebook.sdk:lastDeferredAppLink%@";
 static NSString *const FBSDKDeferredAppLinkEvent = @"DEFERRED_APP_LINK";
@@ -50,7 +35,11 @@ static id<FBSDKAppEventsConfigurationProviding> _appEventsConfigurationProvider;
 static id<FBSDKAdvertiserIDProviding> _advertiserIDProvider;
 static id<FBSDKAppEventDropDetermining> _appEventsDropDeterminer;
 static id<FBSDKAppEventParametersExtracting> _appEventParametersExtractor;
-static BOOL _isConfigured;
+static id<FBSDKAppLinkURLCreating> _appLinkURLFactory;
+static id<FBSDKUserIDProviding> _userIDProvider;
+static id<FBSDKUserDataPersisting> _userDataStore;
+
+static BOOL _isConfigured = NO;
 
 + (void)configureWithGraphRequestFactory:(id<FBSDKGraphRequestFactory>)graphRequestFactory
                   infoDictionaryProvider:(id<FBSDKInfoDictionaryProviding>)infoDictionaryProvider
@@ -59,6 +48,9 @@ static BOOL _isConfigured;
                     advertiserIDProvider:(id<FBSDKAdvertiserIDProviding>)advertiserIDProvider
                  appEventsDropDeterminer:(id<FBSDKAppEventDropDetermining>)appEventsDropDeterminer
              appEventParametersExtractor:(id<FBSDKAppEventParametersExtracting>)appEventParametersExtractor
+                       appLinkURLFactory:(id<FBSDKAppLinkURLCreating>)appLinkURLFactory
+                          userIDProvider:(nonnull id<FBSDKUserIDProviding>)userIDProvider
+                           userDataStore:(id<FBSDKUserDataPersisting>)userDataStore
 {
   if (self == FBSDKAppLinkUtility.class) {
     self.graphRequestFactory = graphRequestFactory;
@@ -68,6 +60,9 @@ static BOOL _isConfigured;
     self.advertiserIDProvider = advertiserIDProvider;
     self.appEventsDropDeterminer = appEventsDropDeterminer;
     self.appEventParametersExtractor = appEventParametersExtractor;
+    self.appLinkURLFactory = appLinkURLFactory;
+    self.userIDProvider = userIDProvider;
+    self.userDataStore = userDataStore;
     self.isConfigured = YES;
   }
 }
@@ -144,6 +139,36 @@ static BOOL _isConfigured;
   _appEventParametersExtractor = appEventParametersExtractor;
 }
 
++ (id<FBSDKAppLinkURLCreating>)appLinkURLFactory
+{
+  return _appLinkURLFactory;
+}
+
++ (void)setAppLinkURLFactory:(id<FBSDKAppLinkURLCreating>)appLinkURLFactory
+{
+  _appLinkURLFactory = appLinkURLFactory;
+}
+
++ (nullable id<FBSDKUserIDProviding>)userIDProvider
+{
+  return _userIDProvider;
+}
+
++ (void)setUserIDProvider:(nullable id<FBSDKUserIDProviding>)userIDProvider
+{
+  _userIDProvider = userIDProvider;
+}
+
++ (nullable id<FBSDKUserDataPersisting>)userDataStore
+{
+  return _userDataStore;
+}
+
++ (void)setUserDataStore:(nullable id<FBSDKUserDataPersisting>)userDataStore
+{
+  _userDataStore = userDataStore;
+}
+
 + (BOOL)isConfigured
 {
   return _isConfigured;
@@ -161,6 +186,17 @@ static BOOL _isConfigured;
   [self validateConfiguration];
   NSAssert(NSThread.isMainThread, @"FBSDKAppLink fetchDeferredAppLink: must be invoked from main thread.");
 
+  // Only invoked for the first time being installed
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  if ([defaults boolForKey:@"fbsdk_ddl_has_launched_before"]) {
+    // not the first time launching the app, give up
+    if (handler) {
+      handler(nil, nil);
+    }
+    return;
+  }
+  [defaults setBool:YES forKey:@"fbsdk_ddl_has_launched_before"]; // to prevent the future calls
+
   [self.appEventsConfigurationProvider loadAppEventsConfigurationWithBlock:^{
     if ([self.appEventsDropDeterminer shouldDropAppEvents]) {
       if (handler) {
@@ -170,29 +206,22 @@ static BOOL _isConfigured;
       return;
     }
 
-    if (@available(iOS 14.5, *)) {
-      NSString *defaultAdvertiserID = @"00000000-0000-0000-0000-000000000000";
-      BOOL isAdvertiserIDMissingOrDefault = !self.advertiserIDProvider.advertiserID
-      || [self.advertiserIDProvider.advertiserID isEqualToString:defaultAdvertiserID];
-
-      if (handler && isAdvertiserIDMissingOrDefault) {
-        NSError *error = [[NSError alloc] initWithDomain:@"ATTrackingManager.AuthorizationStatus must be `authorized` for deferred deep linking to work. Read more at: https://developer.apple.com/documentation/apptrackingtransparency" code:-1 userInfo:nil];
-        handler(nil, error);
-        return;
-      }
-    }
-
     // Deferred app links are only currently used for engagement ads, thus we consider the app to be an advertising one.
     // If this is considered for organic, non-ads scenarios, we'll need to retrieve the FBAppEventsUtility.shouldAccessAdvertisingID
     // before we make this call.
-    NSMutableDictionary<NSString *, id> *deferredAppLinkParameters =
+    NSMutableDictionary<NSString *, NSString *> *deferredAppLinkParameters =
     [self.appEventParametersExtractor activityParametersDictionaryForEvent:FBSDKDeferredAppLinkEvent
-                                                 shouldAccessAdvertisingID:YES];
+                                                 shouldAccessAdvertisingID:YES
+                                                                    userID:self.userIDProvider.userID
+                                                                  userData:[self.userDataStore getUserData]];
+
     id<FBSDKGraphRequest> deferredAppLinkRequest = [self.graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/activities", self.settings.appID, nil]
                                                                                                   parameters:deferredAppLinkParameters
                                                                                                  tokenString:nil
                                                                                                      version:nil
-                                                                                                  HTTPMethod:FBSDKHTTPMethodPOST];
+                                                                                                  HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                                forAppEvents:YES
+                                                                           useAlternativeDefaultDomainPrefix:NO];
     [deferredAppLinkRequest startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection,
                                                   id result,
                                                   NSError *error) {
@@ -226,13 +255,13 @@ static BOOL _isConfigured;
 + (nullable NSString *)appInvitePromotionCodeFromURL:(NSURL *)url
 {
   [self validateConfiguration];
-  FBSDKURL *parsedUrl = [FBSDKURL URLWithURL:url];
+  id<FBSDKAppLinkURL> parsedUrl = [self.appLinkURLFactory createAppLinkURLWithURL:url];
   NSDictionary<NSString *, id> *extras = parsedUrl.appLinkExtras;
   if (extras) {
     NSString *deeplinkContextString = extras[@"deeplink_context"];
 
     // Parse deeplinkContext and extract promo code
-    if (deeplinkContextString.length > 0) {
+    if ([deeplinkContextString isKindOfClass:NSString.class] && deeplinkContextString.length > 0) {
       NSError *error = nil;
       NSDictionary<id, id> *deeplinkContextData = [FBSDKBasicUtility objectForJSONString:deeplinkContextString error:&error];
       if (!error && [deeplinkContextData isKindOfClass:[NSDictionary<NSString *, id> class]]) {
@@ -250,7 +279,7 @@ static BOOL _isConfigured;
     return NO;
   }
   [self validateConfiguration];
-  for (NSDictionary<NSString *, id> *urlType in [self.infoDictionaryProvider objectForInfoDictionaryKey:@"CFBundleURLTypes"]) {
+  for (NSDictionary<NSString *, id> *urlType in [self.infoDictionaryProvider fb_objectForInfoDictionaryKey:@"CFBundleURLTypes"]) {
     for (NSString *urlScheme in urlType[@"CFBundleURLSchemes"]) {
       if ([urlScheme caseInsensitiveCompare:scheme] == NSOrderedSame) {
         return YES;
@@ -275,7 +304,7 @@ static BOOL _isConfigured;
 #endif
 }
 
-#if DEBUG && FBTEST
+#if DEBUG
 
 + (void)reset
 {
@@ -287,6 +316,9 @@ static BOOL _isConfigured;
   _advertiserIDProvider = nil;
   _appEventsDropDeterminer = nil;
   _appEventParametersExtractor = nil;
+  _appLinkURLFactory = nil;
+  _userIDProvider = nil;
+  _userDataStore = nil;
 }
 
 #endif

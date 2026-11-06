@@ -1,33 +1,21 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKTimeSpentData.h"
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #import "FBSDKAppEventName+Internal.h"
-#import "FBSDKAppEventParameterName.h"
-#import "FBSDKAppEventsFlushReason.h"
+#import "FBSDKAppEventParameterName+Internal.h"
+#import <FBSDKCoreKit/FBSDKAppEventsFlushReason.h>
 #import "FBSDKEventLogging.h"
 #import "FBSDKInternalUtility+Internal.h"
 #import "FBSDKLogger.h"
 #import "FBSDKServerConfiguration.h"
-#import "FBSDKServerConfigurationProviding.h"
 
 // Filename and keys for session length
 NSString *const FBSDKTimeSpentFilename = @"com-facebook-sdk-AppEventsTimeSpent.json";
@@ -35,12 +23,6 @@ static NSString *const FBSDKTimeSpentPersistKeySessionSecondsSpent = @"secondsSp
 static NSString *const FBSDKTimeSpentPersistKeySessionNumInterruptions = @"numInterruptions";
 static NSString *const FBSDKTimeSpentPersistKeyLastSuspendTime = @"lastSuspendTime";
 static NSString *const FBSDKTimeSpentPersistKeySessionID = @"sessionID";
-
-static NSString *const FBSDKAppEventParameterNameSessionInterruptions = @"fb_mobile_app_interruptions";
-static NSString *const FBSDKAppEventParameterNameTimeBetweenSessions = @"fb_mobile_time_between_sessions";
-static NSString *const FBSDKAppEventParameterNameSessionID = @"_session_id";
-
-FBSDKAppEventParameterName FBSDKAppEventParameterLaunchSource = @"fb_mobile_launch_source";
 
 static const int SECS_PER_MIN = 60;
 static const int SECS_PER_HOUR = 60 * SECS_PER_MIN;
@@ -70,6 +52,15 @@ static const long INACTIVE_SECONDS_QUANTA[] =
   365 * SECS_PER_DAY,
   LONG_MAX, // keep as LONG_MAX to guarantee loop will terminate
 };
+
+static dispatch_queue_t FBSDKTimeSpentDataWriteQueue(void) {
+  static dispatch_queue_t queue;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    queue = dispatch_queue_create("com.facebook.sdk.TimeSpentData.write", DISPATCH_QUEUE_SERIAL);
+  });
+  return queue;
+}
 
 @interface FBSDKTimeSpentData ()
 
@@ -123,7 +114,6 @@ static const long INACTIVE_SECONDS_QUANTA[] =
 - (void)suspendTimeSpentData
 {
   if (!self.isCurrentlyLoaded) {
-    FBSDKConditionalLog(YES, FBSDKLoggingBehaviorInformational, @"[FBSDKTimeSpentData suspend] invoked without corresponding restore");
     return;
   }
 
@@ -149,16 +139,30 @@ static const long INACTIVE_SECONDS_QUANTA[] =
 
   NSString *content = [FBSDKBasicUtility JSONStringForObject:timeSpentData error:NULL invalidObjectHandler:NULL];
 
-  [content writeToFile:[FBSDKBasicUtility persistenceFilePath:FBSDKTimeSpentFilename]
-            atomically:YES
-              encoding:NSASCIIStringEncoding
-                 error:nil];
+  __block UIBackgroundTaskIdentifier bgTask = UIBackgroundTaskInvalid;
+  bgTask = [UIApplication.sharedApplication beginBackgroundTaskWithExpirationHandler:^{
+    [UIApplication.sharedApplication endBackgroundTask:bgTask];
+    bgTask = UIBackgroundTaskInvalid;
+  }];
+  dispatch_async(FBSDKTimeSpentDataWriteQueue(), ^{
+    [content writeToFile:[FBSDKBasicUtility persistenceFilePath:FBSDKTimeSpentFilename]
+              atomically:YES
+                encoding:NSASCIIStringEncoding
+                   error:nil];
 
-  NSString *msg = [NSString stringWithFormat:@"FBSDKTimeSpentData Persist: %@", content];
-  [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                         logEntry:msg];
+    NSString *msg = [NSString stringWithFormat:@"FBSDKTimeSpentData Persist: %@", content];
+    [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                           logEntry:msg];
 
-  self.isCurrentlyLoaded = NO;
+    if (bgTask != UIBackgroundTaskInvalid) {
+      [UIApplication.sharedApplication endBackgroundTask:bgTask];
+      bgTask = UIBackgroundTaskInvalid;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+      self.isCurrentlyLoaded = NO;
+    });
+  });
 }
 
 // Called during activation - either through an explicit 'activateApp' call or implicitly when the app is foregrounded.
@@ -201,7 +205,7 @@ static const long INACTIVE_SECONDS_QUANTA[] =
       self.secondsSpentInCurrentSession = [results[FBSDKTimeSpentPersistKeySessionSecondsSpent] intValue];
       self.sessionID = results[FBSDKTimeSpentPersistKeySessionID] ?: [NSUUID UUID].UUIDString;
       self.numInterruptionsInCurrentSession = [results[FBSDKTimeSpentPersistKeySessionNumInterruptions] intValue];
-      self.shouldLogActivateEvent = (self.timeSinceLastSuspend > [[self.serverConfigurationProvider cachedServerConfiguration] sessionTimoutInterval]);
+      self.shouldLogActivateEvent = (self.timeSinceLastSuspend > [[self.serverConfigurationProvider cachedServerConfiguration] sessionTimeoutInterval]);
 
       // Other than the first launch, we always log the last session's deactivate with this session's activate.
       self.shouldLogDeactivateEvent = self.shouldLogActivateEvent;
@@ -242,25 +246,25 @@ static const long INACTIVE_SECONDS_QUANTA[] =
   }
 }
 
-- (NSDictionary<NSString *, id> *)appEventsParametersForActivate
+- (NSDictionary<FBSDKAppEventParameterName, id> *)appEventsParametersForActivate
 {
   return @{
-    FBSDKAppEventParameterLaunchSource : [self getSourceApplication],
+    FBSDKAppEventParameterNameLaunchSource : [self getSourceApplication],
     FBSDKAppEventParameterNameSessionID : self.sessionID,
   };
 }
 
-- (NSDictionary<NSString *, id> *)appEventsParametersForDeactivate
+- (NSDictionary<FBSDKAppEventParameterName, id> *)appEventsParametersForDeactivate
 {
   int quantaIndex = 0;
   while (_timeSinceLastSuspend > INACTIVE_SECONDS_QUANTA[quantaIndex]) {
     quantaIndex++;
   }
 
-  NSMutableDictionary<NSString *, id> *params = [@{ FBSDKAppEventParameterNameSessionInterruptions : @(self.numInterruptionsInCurrentSession),
-                                                    FBSDKAppEventParameterNameTimeBetweenSessions : [NSString stringWithFormat:@"session_quanta_%d", quantaIndex],
-                                                    FBSDKAppEventParameterLaunchSource : [self getSourceApplication],
-                                                    FBSDKAppEventParameterNameSessionID : self.sessionID ?: @"", } mutableCopy];
+  NSMutableDictionary<FBSDKAppEventParameterName, id> *params = [@{ FBSDKAppEventParameterNameSessionInterruptions : @(self.numInterruptionsInCurrentSession),
+                                                                    FBSDKAppEventParameterNameTimeBetweenSessions : [NSString stringWithFormat:@"session_quanta_%d", quantaIndex],
+                                                                    FBSDKAppEventParameterNameLaunchSource : [self getSourceApplication],
+                                                                    FBSDKAppEventParameterNameSessionID : self.sessionID ?: @"", } mutableCopy];
   if (_lastSuspendTime) {
     [FBSDKTypeUtility dictionary:params setObject:@(_lastSuspendTime) forKey:@"_logTime"];
   }

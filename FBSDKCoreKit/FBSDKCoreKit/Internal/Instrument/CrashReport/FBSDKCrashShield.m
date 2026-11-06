@@ -1,30 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKCrashShield.h"
-
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #import "FBSDKFeatureChecking.h"
-#import "FBSDKFeatureDisabling.h"
 #import "FBSDKGraphRequestFactoryProtocol.h"
 #import "FBSDKGraphRequestProtocol.h"
-#import "FBSDKSettingsProtocol.h"
 
 @interface FBSDKCrashShield ()
 
@@ -108,10 +95,11 @@ static id<FBSDKSettings> _settings;
         @"FBSDKIntegrityManager",
       ],
       @"EventDeactivation" : @[
-        @"FBSDKEventDeactivationManager",
+        @"EventDeactivationManager",
       ],
       @"SKAdNetworkConversionValue" : @[
         @"FBSDKSKAdNetworkReporter",
+        @"FBSDKSKAdNetworkReporterV2",
         @"FBSDKSKAdNetworkConversionConfiguration",
         @"FBSDKSKAdNetworkRule",
         @"FBSDKSKAdNetworkEvent",
@@ -131,6 +119,7 @@ static id<FBSDKSettings> _settings;
       @"EventDeactivation" : @(FBSDKFeatureEventDeactivation),
       @"SKAdNetwork" : @(FBSDKFeatureSKAdNetwork),
       @"SKAdNetworkConversionValue" : @(FBSDKFeatureSKAdNetworkConversionValue),
+      @"SKAdNetworkV4" : @(FBSDKFeatureSKAdNetworkV4),
       @"Instrument" : @(FBSDKFeatureInstrument),
       @"CrashReport" : @(FBSDKFeatureCrashReport),
       @"CrashShield" : @(FBSDKFeatureCrashShield),
@@ -160,7 +149,7 @@ static id<FBSDKSettings> _settings;
     return;
   }
   if (disabledFeatures.count > 0) {
-    NSDictionary<NSString *, id> *disabledFeatureLog = @{@"feature_names" : [disabledFeatures allObjects],
+    NSDictionary<NSString *, id> *disabledFeatureLog = @{@"feature_names" : disabledFeatures.allObjects,
                                                          @"timestamp" : [NSString stringWithFormat:@"%.0lf", [[NSDate date] timeIntervalSince1970]], };
     NSData *jsonData = [FBSDKTypeUtility dataWithJSONObject:disabledFeatureLog options:0 error:nil];
     if (jsonData) {
@@ -168,7 +157,10 @@ static id<FBSDKSettings> _settings;
       if (disabledFeatureReport) {
         id<FBSDKGraphRequest> request = [_graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/instruments", [self.settings appID]]
                                                                                    parameters:@{@"crash_shield" : disabledFeatureReport}
-                                                                                   HTTPMethod:FBSDKHTTPMethodPOST];
+                                                                                  tokenString:nil
+                                                                                   HTTPMethod:FBSDKHTTPMethodPOST 
+                                                                                        flags:FBSDKGraphRequestFlagNone
+                                                            useAlternativeDefaultDomainPrefix:NO];
 
         [request startWithCompletion:nil];
       }
@@ -206,13 +198,13 @@ static id<FBSDKSettings> _settings;
   NSString *className = nil;
   // parse class name only from an entry in format "-[className functionName]+offset"
   // or "+[className functionName]+offset"
-  if (items.count > 0 && ([[FBSDKTypeUtility array:items objectAtIndex:0] hasPrefix:@"+["] || [[FBSDKTypeUtility array:items objectAtIndex:0] hasPrefix:@"-["])) {
-    className = [[FBSDKTypeUtility array:items objectAtIndex:0] substringFromIndex:2];
+  if ([items.firstObject hasPrefix:@"+["] || [items.firstObject hasPrefix:@"-["]) {
+    className = [items.firstObject substringFromIndex:2];
   }
   return className;
 }
 
-#if DEBUG && FBTEST
+#if DEBUG
 
 + (void)reset
 {

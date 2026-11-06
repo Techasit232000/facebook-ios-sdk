@@ -1,33 +1,23 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import <Foundation/Foundation.h>
 
 #import <FBSDKCoreKit/FBSDKGraphRequest.h>
-#import <FBSDKCoreKit/FBSDKGraphRequestConnectionFactory.h>
 #import <FBSDKCoreKit/FBSDKGraphRequestFlags.h>
-
-@protocol FBSDKTokenStringProviding;
-@protocol FBSDKSettings;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface FBSDKGraphRequest (Internal)
+
+@property (class, nullable, nonatomic) id<FBSDKGraphRequestConnectionFactory> graphRequestConnectionFactory;
+@property (class, nullable, nonatomic) id<FBSDKSettings> settings;
+@property (class, nullable, nonatomic) Class<FBSDKTokenStringProviding> accessTokenProvider;
 
 @property (nonatomic, readonly, getter = isGraphErrorRecoveryDisabled) BOOL graphErrorRecoveryDisabled;
 @property (nonatomic, readonly) BOOL hasAttachments;
@@ -47,16 +37,24 @@ NS_ASSUME_NONNULL_BEGIN
                             flags:(FBSDKGraphRequestFlags)flags
     graphRequestConnectionFactory:(id<FBSDKGraphRequestConnectionFactory>)factory;
 
+- (instancetype)initWithGraphPath:(NSString *)graphPath
+                       parameters:(NSDictionary<NSString *, id> *)parameters
+                      tokenString:(NSString *)tokenString
+                       HTTPMethod:(NSString *)method
+                          version:(NSString *)version
+                            flags:(FBSDKGraphRequestFlags)flags
+useAlternativeDefaultDomainPrefix:(BOOL)useAlternativeDefaultDomainPrefix
+    graphRequestConnectionFactory:(id<FBSDKGraphRequestConnectionFactory>)factory;
+
++ (BOOL)isForFetchingDomainConfiguration:(id<FBSDKGraphRequest>)request 
+NS_SWIFT_NAME(isForFetchingDomainConfiguration(request:));
++ (BOOL)isForDomainReport:(id<FBSDKGraphRequest>)request
+NS_SWIFT_NAME(isForDomainReport(request:));
 + (BOOL)isAttachment:(id)item;
 + (NSString *)serializeURL:(NSString *)baseUrl
                     params:(nullable NSDictionary<NSString *, id> *)params
                 httpMethod:(nullable NSString *)httpMethod
                   forBatch:(BOOL)forBatch;
-
-+ (void)configureWithSettings:(id<FBSDKSettings>)settings
-currentAccessTokenStringProvider:(Class<FBSDKTokenStringProviding>)provider
-graphRequestConnectionFactory:(id<FBSDKGraphRequestConnectionFactory>)_graphRequestConnectionFactory
-NS_SWIFT_NAME(configure(settings:currentAccessTokenStringProvider:graphRequestConnectionFactory:));
 
 @end
 

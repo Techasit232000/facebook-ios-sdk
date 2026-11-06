@@ -1,82 +1,63 @@
 #!/bin/sh
-# Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 #
-# You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-# copy, modify, and distribute this software in source code or binary form for use
-# in connection with the web services and APIs provided by Facebook.
-#
-# As with any software that integrates with the Facebook platform, your use of
-# this software is subject to the Facebook Developer Principles and Policies
-# [http://developers.facebook.com/policy/]. This copyright notice shall be
-# included in all copies or substantial portions of the software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
-EXPECTED_XCODEGEN_VERSION="2.24.0"
+EXPECTED_XCODEGEN_VERSION="2.29.0"
 
 RESET='\033[0m'
 YELLOW='\033[1;33m'
 
+REOPEN_XCODE=false
+
 pgrep -f '/Applications/Xcode.*\.app/Contents/MacOS/Xcode' > /dev/null
+# shellcheck disable=SC2181
 if [ $? -eq 0 ]; then
-    XCODE_WAS_OPEN="true"
-    echo "⚠️  ${YELLOW}Closing Xcode!${RESET}"
-    killall Xcode || true
+    if [ "$1" != "--skip-closing-xcode" ]; then
+        echo "⚠️  ${YELLOW}Closing Xcode!${RESET}"
+        killall Xcode || true
+        REOPEN_XCODE=true
+    fi
 fi
 
-if ! command -v xcodegen >/dev/null; then
+XCODEGEN_BINARY="xcodegen"
+if [ -f internal/tools/xcodegen ]; then
+    CWD=$(pwd)
+    XCODEGEN_BINARY="${CWD}/internal/tools/xcodegen"
+elif ! command -v xcodegen >/dev/null; then
     echo "WARNING: Xcodegen not installed, run 'brew install xcodegen' or visit https://github.com/yonaskolb/XcodeGen"
-    exit
+    exit 1
 fi
 
-VERSION=$( xcodegen --version )
-
-if [ "$VERSION" != "Version: $EXPECTED_XCODEGEN_VERSION" ]; then
-    echo "Incorrect xcodegen version. Please install or upgrade to version $EXPECTED_XCODEGEN_VERSION"
-    exit
+CURRENT_XCODEGEN_VERSION=$("$XCODEGEN_BINARY" --version)
+CURRENT_XCODEGEN_VERSION=${CURRENT_XCODEGEN_VERSION#"Version: "} # Strip "Version :" prefix
+if [ "$CURRENT_XCODEGEN_VERSION" != "$EXPECTED_XCODEGEN_VERSION" ]; then
+    echo "${YELLOW}WARNING: Expected xcodegen version is $EXPECTED_XCODEGEN_VERSION. You have $CURRENT_XCODEGEN_VERSION.${RESET}"
+    XCODEGEN_VERSION_BYPASS_FLAG='--force-with-wrong-xcodegen'
+    if [ "$1" != "$XCODEGEN_VERSION_BYPASS_FLAG" ]; then
+        echo "${YELLOW}You may use the $XCODEGEN_VERSION_BYPASS_FLAG flag to bypass this check.${RESET}"
+        exit 1
+    else
+        echo "${YELLOW}Using $XCODEGEN_VERSION_BYPASS_FLAG to bypass version check. Xcode project file generation will proceed but you may encounter unexpected issues.${RESET}"
+    fi
 fi
 
-cd TestTools || exit
-xcodegen generate
+for KIT_DIR in FBSDKCoreKit_Basics FBAEMKit FBSDKCoreKit TestTools FBSDKLoginKit FBSDKShareKit FBSDKGamingServicesKit; do
+    cd $KIT_DIR || exit
+    # Set the env var XCODEGEN_USE_CACHE to anything to use the --use-cache flag
+    if [ -n "$XCODEGEN_USE_CACHE" ]; then
+        # Use rm -rf ~/.xcodegen/cache if you need to reset the cache
+        "$XCODEGEN_BINARY" generate --use-cache
+    else
+        "$XCODEGEN_BINARY" generate
+    fi
+    cd ..
+done
 
-cd ..
 
-cd FBSDKCoreKit_Basics || exit
-xcodegen generate
-
-cd ..
-
-cd FBAEMKit || exit
-xcodegen generate
-
-cd ..
-
-cd FBSDKCoreKit || exit
-xcodegen generate
-
-cd ..
-
-cd FBSDKLoginKit || exit
-xcodegen generate
-
-cd ..
-
-cd FBSDKShareKit || exit
-xcodegen generate
-
-cd ..
-
-cd FBSDKGamingServicesKit || exit
-xcodegen generate
-
-cd ..
-
-if [ $XCODE_WAS_OPEN ]; then
+if [ "$REOPEN_XCODE" = true ]; then
     echo "${YELLOW}Reopening FacebookSDK.xcworkspace${RESET}"
     open FacebookSDK.xcworkspace
 fi

@@ -1,35 +1,28 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
-#import "FBSDKWebDialogView.h"
+#import "FBSDKWebDialogView+Internal.h"
 
 #import <WebKit/WebKit.h>
 
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
-#import "FBSDKCloseIcon.h"
-#import "FBSDKError+Internal.h"
-#import "FBSDKInternalURLOpener.h"
+#import "FBSDKSafeCast.h"
 #import "FBSDKWebViewProviding.h"
 
 #define FBSDK_WEB_DIALOG_VIEW_BORDER_WIDTH 10.0
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 @interface FBSDKWebDialogView () <WKNavigationDelegate>
 
@@ -43,22 +36,45 @@
 
 static id<FBSDKWebViewProviding> _webViewProvider;
 static id<FBSDKInternalURLOpener> _urlOpener;
+static id<FBSDKErrorCreating> _errorFactory;
 
-+ (void)configureWithWebViewProvider:(id<FBSDKWebViewProviding>)provider
-                           urlOpener:(id<FBSDKInternalURLOpener>)urlOpener;
++ (void)configureWithWebViewProvider:(id<FBSDKWebViewProviding>)webViewProvider
+                           urlOpener:(id<FBSDKInternalURLOpener>)urlOpener
+                        errorFactory:(id<FBSDKErrorCreating>)errorFactory;
 {
-  _webViewProvider = provider;
+  _webViewProvider = webViewProvider;
   _urlOpener = urlOpener;
+  _errorFactory = errorFactory;
 }
 
-+ (id<FBSDKInternalURLOpener>)urlOpener
++ (nullable id<FBSDKWebViewProviding>)webViewProvider
+{
+  return _webViewProvider;
+}
+
++ (void)setWebViewProvider:(id<FBSDKWebViewProviding>)webViewProvider
+{
+  _webViewProvider = webViewProvider;
+}
+
++ (nullable id<FBSDKInternalURLOpener>)urlOpener
 {
   return _urlOpener;
 }
 
-- (id<FBSDKInternalURLOpener>)urlOpener
++ (void)setUrlOpener:(nullable id<FBSDKInternalURLOpener>)urlOpener
 {
-  return FBSDKWebDialogView.urlOpener;
+  _urlOpener = urlOpener;
+}
+
++ (nullable id<FBSDKErrorCreating>)errorFactory
+{
+  return _errorFactory;
+}
+
++ (void)setErrorFactory:(nullable id<FBSDKErrorCreating>)errorFactory
+{
+  _errorFactory = errorFactory;
 }
 
 #pragma mark - Object Lifecycle
@@ -69,12 +85,12 @@ static id<FBSDKInternalURLOpener> _urlOpener;
     self.backgroundColor = UIColor.clearColor;
     self.opaque = NO;
 
-    _webView = [_webViewProvider createWebViewWithFrame:CGRectZero];
+    _webView = [self.class.webViewProvider createWebViewWithFrame:CGRectZero];
     _webView.navigationDelegate = self;
 
     // Since we cannot constrain the webview protocol to be a UIView subclass
     // perform a check here to make sure it can be cast to a UIView
-    UIView *webView = FBSDK_CAST_TO_CLASS_OR_NIL(_webView, UIView);
+    UIView *webView = _FBSDKCastToClassOrNilUnsafeInternal(_webView, UIView.class);
     if (!webView) {
       return self;
     }
@@ -94,15 +110,7 @@ static id<FBSDKInternalURLOpener> _urlOpener;
     [self addSubview:_closeButton];
     [_closeButton addTarget:self action:@selector(_close:) forControlEvents:UIControlEventTouchUpInside];
 
-    UIActivityIndicatorViewStyle style;
-    if (@available(iOS 13.0, *)) {
-      style = UIActivityIndicatorViewStyleLarge;
-    } else {
-      #pragma clang diagnostic push
-      #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-      style = UIActivityIndicatorViewStyleWhiteLarge;
-      #pragma clang diagnostic pop
-    }
+    UIActivityIndicatorViewStyle style = UIActivityIndicatorViewStyleLarge;
     _loadingView = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:style];
     _loadingView.color = UIColor.grayColor;
     _loadingView.hidesWhenStopped = YES;
@@ -214,7 +222,10 @@ static id<FBSDKInternalURLOpener> _urlOpener;
       NSInteger errorCode = [FBSDKTypeUtility integerValue:parameters[@"error_code"]];
       if (errorCode) {
         NSString *errorMessage = [FBSDKTypeUtility coercedToStringValue:parameters[@"error_msg"]];
-        NSError *error = [FBSDKError errorWithCode:errorCode message:errorMessage];
+        NSError *error = [self.class.errorFactory errorWithCode:errorCode
+                                                       userInfo:nil
+                                                        message:errorMessage
+                                                underlyingError:nil];
         [self.delegate webDialogView:self didFailWithError:error];
       } else {
         [self.delegate webDialogViewDidCancel:self];
@@ -224,14 +235,9 @@ static id<FBSDKInternalURLOpener> _urlOpener;
     }
     decisionHandler(WKNavigationActionPolicyCancel);
   } else if (navigationAction.navigationType == WKNavigationTypeLinkActivated) {
-    if (@available(iOS 10.0, *)) {
-      [self.urlOpener openURL:URL options:@{} completionHandler:^(BOOL success) {
-        decisionHandler(WKNavigationActionPolicyCancel);
-      }];
-    } else {
-      [self.urlOpener openURL:URL];
+    [self.class.urlOpener openURL:URL options:@{} completionHandler:^(BOOL success) {
       decisionHandler(WKNavigationActionPolicyCancel);
-    }
+    }];
   } else {
     decisionHandler(WKNavigationActionPolicyAllow);
   }
@@ -243,17 +249,15 @@ static id<FBSDKInternalURLOpener> _urlOpener;
   [self.delegate webDialogViewDidFinishLoad:self];
 }
 
-#if DEBUG && FBTEST
+#pragma clang diagnostic pop
 
-+ (void)reset
-{
-  _webViewProvider = nil;
-  _urlOpener = nil;
-}
+#if DEBUG
 
-+ (id<FBSDKWebViewProviding>)webViewProvider
++ (void)resetClassDependencies
 {
-  return _webViewProvider;
+  self.webViewProvider = nil;
+  self.urlOpener = nil;
+  self.errorFactory = nil;
 }
 
 #endif

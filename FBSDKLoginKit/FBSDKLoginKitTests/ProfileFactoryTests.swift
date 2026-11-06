@@ -1,80 +1,73 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKLoginKit
+@testable import FBSDKLoginKit
+
 import TestTools
 import XCTest
 
-class ProfileFactoryTests: XCTestCase {
+final class ProfileFactoryTests: XCTestCase {
 
-  let expected = Profile(
-    userID: SampleUserProfiles.valid.userID,
-    firstName: SampleUserProfiles.valid.firstName,
-    middleName: SampleUserProfiles.valid.middleName,
-    lastName: SampleUserProfiles.valid.lastName,
-    name: SampleUserProfiles.valid.name,
-    linkURL: SampleUserProfiles.valid.linkURL,
-    refreshDate: SampleUserProfiles.valid.refreshDate,
-    imageURL: SampleUserProfiles.valid.imageURL,
-    email: SampleUserProfiles.valid.email,
-    friendIDs: SampleUserProfiles.valid.friendIDs,
-    birthday: SampleUserProfiles.valid.birthday,
-    ageRange: SampleUserProfiles.valid.ageRange,
-    hometown: SampleUserProfiles.valid.hometown,
-    location: SampleUserProfiles.valid.location,
-    gender: SampleUserProfiles.valid.gender,
-    isLimited: true
-  )
-  let factory = ProfileFactory()
+  // swiftlint:disable implicitly_unwrapped_optional
+  var sampleProfile: Profile!
+  var factory: ProfileFactory!
+  // swiftlint:enable implicitly_unwrapped_optional
+
+  override func setUp() {
+    super.setUp()
+
+    sampleProfile = SampleUserProfiles.createValid(isLimited: true)
+    factory = ProfileFactory()
+  }
+
+  override func tearDown() {
+    sampleProfile = nil
+    factory = nil
+
+    super.tearDown()
+  }
 
   func testCreatingProfile() {
     let profile = factory.createProfile(
-      userID: SampleUserProfiles.valid.userID,
-      firstName: SampleUserProfiles.valid.firstName,
-      middleName: SampleUserProfiles.valid.middleName,
-      lastName: SampleUserProfiles.valid.lastName,
-      name: SampleUserProfiles.valid.name,
-      linkURL: SampleUserProfiles.valid.linkURL,
-      refreshDate: SampleUserProfiles.valid.refreshDate,
-      imageURL: SampleUserProfiles.valid.imageURL,
-      email: SampleUserProfiles.valid.email,
-      friendIDs: SampleUserProfiles.valid.friendIDs,
-      birthday: SampleUserProfiles.valid.birthday,
-      ageRange: SampleUserProfiles.valid.ageRange,
-      hometown: SampleUserProfiles.valid.hometown,
-      location: SampleUserProfiles.valid.location,
-      gender: SampleUserProfiles.valid.gender,
+      userID: sampleProfile.userID,
+      firstName: sampleProfile.firstName,
+      middleName: sampleProfile.middleName,
+      lastName: sampleProfile.lastName,
+      name: sampleProfile.name,
+      linkURL: sampleProfile.linkURL,
+      refreshDate: sampleProfile.refreshDate,
+      imageURL: sampleProfile.imageURL,
+      email: sampleProfile.email,
+      friendIDs: sampleProfile.friendIDs,
+      birthday: sampleProfile.birthday,
+      ageRange: sampleProfile.ageRange,
+      hometown: sampleProfile.hometown,
+      location: sampleProfile.location,
+      gender: sampleProfile.gender,
+      permissions: sampleProfile.permissions,
       isLimited: true
     )
-    XCTAssertEqual(profile.userID, expected.userID)
-    XCTAssertEqual(profile.firstName, expected.firstName)
-    XCTAssertEqual(profile.middleName, expected.middleName)
-    XCTAssertEqual(profile.lastName, expected.lastName)
-    XCTAssertEqual(profile.name, expected.name)
-    XCTAssertEqual(profile.linkURL, expected.linkURL)
-    XCTAssertEqual(profile.refreshDate, expected.refreshDate)
-    XCTAssertEqual(profile.imageURL, expected.imageURL)
-    XCTAssertEqual(profile.email, expected.email)
-    XCTAssertEqual(profile.friendIDs, expected.friendIDs)
-    XCTAssertEqual(profile.birthday, expected.birthday)
-    XCTAssertEqual(profile.ageRange, expected.ageRange)
-    XCTAssertEqual(profile.hometown, expected.hometown)
-    XCTAssertEqual(profile.location, expected.location)
-    XCTAssertEqual(profile.gender, expected.gender)
+
+    XCTAssertEqual(profile.userID, sampleProfile.userID)
+    XCTAssertEqual(profile.firstName, sampleProfile.firstName)
+    XCTAssertEqual(profile.middleName, sampleProfile.middleName)
+    XCTAssertEqual(profile.lastName, sampleProfile.lastName)
+    XCTAssertEqual(profile.name, sampleProfile.name)
+    XCTAssertEqual(profile.linkURL, sampleProfile.linkURL)
+    XCTAssertEqual(profile.refreshDate, sampleProfile.refreshDate)
+    XCTAssertEqual(profile.imageURL, sampleProfile.imageURL)
+    XCTAssertEqual(profile.email, sampleProfile.email)
+    XCTAssertEqual(profile.friendIDs, sampleProfile.friendIDs)
+    XCTAssertEqual(profile.birthday, sampleProfile.birthday)
+    XCTAssertEqual(profile.ageRange, sampleProfile.ageRange)
+    XCTAssertEqual(profile.hometown, sampleProfile.hometown)
+    XCTAssertEqual(profile.location, sampleProfile.location)
+    XCTAssertEqual(profile.gender, sampleProfile.gender)
+    XCTAssertEqual(profile.permissions, sampleProfile.permissions)
   }
 }

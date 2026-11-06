@@ -1,27 +1,52 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import FBSDKCoreKit
+import Foundation
 
 @objcMembers
-public class TestGraphRequestConnection: NSObject, GraphRequestConnecting {
+public final class TestGraphRequestConnection: NSObject, GraphRequestConnecting {
+  var shouldExecuteCompletion = false
+  var error: Error?
+  var requestConnectionResult: [String: Any]?
 
-  public typealias Completion = @convention(block) (GraphRequestConnecting, AnyObject?, Error?) -> Void
+  public override convenience init() {
+    self.init(shouldExecuteCompletion: false)
+  }
+
+  public convenience init(shouldExecuteCompletion: Bool) {
+    self.init(
+      shouldExecuteCompletion: shouldExecuteCompletion,
+      error: nil,
+      requestConnectionResult: nil
+    )
+  }
+
+  public init(shouldExecuteCompletion: Bool, error: Error?, requestConnectionResult: [String: Any]?) {
+    super.init()
+    self.shouldExecuteCompletion = shouldExecuteCompletion
+    self.error = error
+    self.requestConnectionResult = requestConnectionResult
+  }
+
+  public var requests: NSMutableArray {
+    NSMutableArray(
+      array: graphRequests.compactMap {
+        GraphRequestMetadata(
+          request: $0.request,
+          completionHandler: $0.completion,
+          batchParameters: nil
+        )
+      }
+    )
+  }
+
+  public typealias Completion = @convention(block) (GraphRequestConnecting, Any?, Error?) -> Void
 
   public struct Request {
     public let request: GraphRequestProtocol
@@ -36,6 +61,11 @@ public class TestGraphRequestConnection: NSObject, GraphRequestConnecting {
   public var capturedCompletions = [Completion]()
   public var startCallCount = 0
   public var cancelCallCount = 0
+  // Records whether `start()` was invoked on the main thread. Deliberately tri-state: `nil`
+  // distinguishes "start() never ran" from "ran on a background thread", which a plain `Bool`
+  // would collapse into the same `false`. Tests that assert on it unwrap first.
+  // swiftlint:disable:next discouraged_optional_boolean
+  public private(set) var startCalledOnMainThread: Bool?
 
   // Enables us to use the internal requests property
   public var graphRequests = [Request]()
@@ -54,7 +84,13 @@ public class TestGraphRequestConnection: NSObject, GraphRequestConnecting {
   }
 
   public func start() {
+    startCalledOnMainThread = Thread.isMainThread
     startCallCount += 1
+    if shouldExecuteCompletion {
+      for completion in capturedCompletions {
+        completion(self, requestConnectionResult, error)
+      }
+    }
   }
 
   public func cancel() {

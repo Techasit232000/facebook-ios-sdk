@@ -1,26 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
-class CrashShieldTests: XCTestCase {
+final class CrashShieldTests: XCTestCase {
   let settings = TestSettings()
   let graphRequestFactory = TestGraphRequestFactory()
   let featureManager = TestFeatureManager()
@@ -29,8 +20,8 @@ class CrashShieldTests: XCTestCase {
     super.setUp()
 
     settings.reset()
-    CrashShield.reset()
-    CrashShield.configure(
+    _CrashShield.reset()
+    _CrashShield.configure(
       with: settings,
       graphRequestFactory: graphRequestFactory,
       featureChecking: featureManager
@@ -43,10 +34,10 @@ class CrashShieldTests: XCTestCase {
     let callstack1 = [
       "(4 DEV METHODS)",
       "+[FBSDKMetadataIndexer crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
-    let featureName1 = CrashShield._getFeature(callstack1)
+    let featureName1 = _CrashShield._getFeature(callstack1)
     XCTAssertEqual(featureName1, "AAM")
   }
 
@@ -54,10 +45,10 @@ class CrashShieldTests: XCTestCase {
     let callstack2 = [
       "(4 DEV METHODS)",
       "+[FBSDKCodelessIndexer crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
-    let featureName2 = CrashShield._getFeature(callstack2)
+    let featureName2 = _CrashShield._getFeature(callstack2)
     XCTAssertEqual(featureName2, "CodelessEvents")
   }
 
@@ -65,10 +56,10 @@ class CrashShieldTests: XCTestCase {
     let callstack3 = [
       "(4 DEV METHODS)",
       "+[FBSDKRestrictiveDataFilterManager crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
-    let featureName3 = CrashShield._getFeature(callstack3)
+    let featureName3 = _CrashShield._getFeature(callstack3)
     XCTAssertEqual(featureName3, "RestrictiveDataFiltering")
   }
 
@@ -76,10 +67,10 @@ class CrashShieldTests: XCTestCase {
     let callstack4 = [
       "(4 DEV METHODS)",
       "+[FBSDKErrorReport crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
-    let featureName4 = CrashShield._getFeature(callstack4)
+    let featureName4 = _CrashShield._getFeature(callstack4)
     XCTAssertEqual(featureName4, "ErrorReport")
   }
 
@@ -88,10 +79,10 @@ class CrashShieldTests: XCTestCase {
     let callstack5 = [
       "(4 DEV METHODS)",
       "+[FBSDKVideoUploader crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
-    let featureName5 = CrashShield._getFeature(callstack5)
+    let featureName5 = _CrashShield._getFeature(callstack5)
     XCTAssertNil(featureName5)
   }
 
@@ -99,11 +90,11 @@ class CrashShieldTests: XCTestCase {
     let callstack = [
       "(4 DEV METHODS)",
       "+[FBSDKVideoUploader crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
-    for _ in 0..<100 {
-      _ = CrashShield._getFeature(Fuzzer.randomize(json: callstack))
+    for _ in 0 ..< 100 {
+      _ = _CrashShield._getFeature(Fuzzer.randomize(json: callstack))
     }
   }
 
@@ -111,31 +102,31 @@ class CrashShieldTests: XCTestCase {
 
   func testGetClassNameForClassMethod() {
     let entry1 = "+[FBSDKRestrictiveDataFilterManager crash]+84"
-    let className1 = CrashShield._getClassName(entry1)
-    XCTAssertTrue((className1 == "FBSDKRestrictiveDataFilterManager"))
+    let className1 = _CrashShield._getClassName(entry1)
+    XCTAssertEqual(className1, "FBSDKRestrictiveDataFilterManager")
   }
 
   func testGetClassNameForInstanceMethod() {
     let entry2 = "-[FBSDKRestrictiveDataFilterManager crash]+84"
-    let className2 = CrashShield._getClassName(entry2)
-    XCTAssertTrue((className2 == "FBSDKRestrictiveDataFilterManager"))
+    let className2 = _CrashShield._getClassName(entry2)
+    XCTAssertEqual(className2, "FBSDKRestrictiveDataFilterManager")
   }
 
   func testGetClassNameForIneligibleFormat() {
     let entry3 = "(6 DEV METHODS)"
-    let className3 = CrashShield._getClassName(entry3)
+    let className3 = _CrashShield._getClassName(entry3)
     XCTAssertNil(className3)
   }
 
   func testParsingClassName() {
-    for _ in 0..<100 {
-      CrashShield._getClassName(Fuzzer.random)
+    for _ in 0 ..< 100 {
+      _CrashShield._getClassName(Fuzzer.random)
     }
   }
 
   func testAnalyzingEmptyCrashLogs() {
     // Should not create a graph request for posting a non-existent crash
-    CrashShield.analyze([])
+    _CrashShield.analyze([])
     XCTAssertNil(
       graphRequestFactory.capturedGraphPath,
       "Should not create a graph request for posting a non-existent crash"
@@ -145,8 +136,8 @@ class CrashShieldTests: XCTestCase {
   // MARK: - Analyze: Disabling Features
 
   func testDisablingCoreKitFeatureWithDataProcessingRestricted() {
-    settings.stubbedIsDataProcessingRestricted = true
-    CrashShield.analyze(coreKitCrashLogs)
+    settings.isDataProcessingRestricted = true
+    _CrashShield.analyze(coreKitCrashLogs)
 
     XCTAssertTrue(
       featureManager.disabledFeaturesContains(.codelessEvents),
@@ -155,8 +146,8 @@ class CrashShieldTests: XCTestCase {
   }
 
   func testDisablingNonCoreKitFeatureWithDataProcessingRestricted() {
-    settings.stubbedIsDataProcessingRestricted = true
-    CrashShield.analyze(nonCoreKitCrashLogs)
+    settings.isDataProcessingRestricted = true
+    _CrashShield.analyze(nonCoreKitCrashLogs)
 
     XCTAssertFalse(
       featureManager.disabledFeaturesContains(.codelessEvents),
@@ -165,9 +156,9 @@ class CrashShieldTests: XCTestCase {
   }
 
   func testDisablingCoreKitFeatureWithDataProcessingUnrestricted() {
-    settings.stubbedIsDataProcessingRestricted = false
+    settings.isDataProcessingRestricted = false
 
-    CrashShield.analyze(coreKitCrashLogs)
+    _CrashShield.analyze(coreKitCrashLogs)
 
     XCTAssertTrue(
       featureManager.disabledFeaturesContains(.codelessEvents),
@@ -176,8 +167,8 @@ class CrashShieldTests: XCTestCase {
   }
 
   func testDisablingNonCoreKitFeatureWithDataProcessingUnrestricted() {
-    settings.stubbedIsDataProcessingRestricted = false
-    CrashShield.analyze(nonCoreKitCrashLogs)
+    settings.isDataProcessingRestricted = false
+    _CrashShield.analyze(nonCoreKitCrashLogs)
 
     XCTAssertFalse(
       featureManager.disabledFeaturesContains(.codelessEvents),
@@ -208,43 +199,43 @@ class CrashShieldTests: XCTestCase {
       "AEM": SDKFeature.AEM,
       "LoginKit": SDKFeature.login,
       "ShareKit": SDKFeature.share,
-      "GamingServicesKit": SDKFeature.gamingServices
+      "GamingServicesKit": SDKFeature.gamingServices,
     ]
 
     for (key, value) in pairs {
-      XCTAssertEqual(CrashShield.feature(for: key), value)
+      XCTAssertEqual(_CrashShield.feature(for: key), value)
     }
   }
 
   // MARK: - Analyze: Posting Crash Logs
 
   func testPostingCoreKitCrashLogsWithDataProcessingRestricted() {
-    settings.stubbedIsDataProcessingRestricted = true
-    CrashShield.analyze(coreKitCrashLogs)
+    settings.isDataProcessingRestricted = true
+    _CrashShield.analyze(coreKitCrashLogs)
     XCTAssertNil(graphRequestFactory.capturedGraphPath)
   }
 
   func testPostingNonCoreKitCrashLogsWithDataProcessingRestricted() {
-    settings.stubbedIsDataProcessingRestricted = true
+    settings.isDataProcessingRestricted = true
 
-    CrashShield.analyze(nonCoreKitCrashLogs)
+    _CrashShield.analyze(nonCoreKitCrashLogs)
     XCTAssertNil(graphRequestFactory.capturedGraphPath)
   }
 
   func testPostingCoreKitCrashLogsWithDataProcessingUnrestricted() {
     // Setup
-    settings.stubbedIsDataProcessingRestricted = false
+    settings.isDataProcessingRestricted = false
     settings.appID = "appID"
 
     // Act
-    CrashShield.analyze(coreKitCrashLogs)
+    _CrashShield.analyze(coreKitCrashLogs)
     XCTAssertNotNil(graphRequestFactory.capturedGraphPath)
   }
 
   func testPostingNonCoreKitCrashLogsWithDataProcessingUnrestricted() {
-    settings.stubbedIsDataProcessingRestricted = false
+    settings.isDataProcessingRestricted = false
     settings.appID = "appID"
-    CrashShield.analyze(nonCoreKitCrashLogs)
+    _CrashShield.analyze(nonCoreKitCrashLogs)
     XCTAssertNil(graphRequestFactory.capturedGraphPath)
   }
 
@@ -263,7 +254,7 @@ class CrashShieldTests: XCTestCase {
     let callStack = [
       "(4 DEV METHODS)",
       "+[\(className) crash]+84",
-      "(22 DEV METHODS)"
+      "(22 DEV METHODS)",
     ]
 
     let crashLogs = [
@@ -275,8 +266,8 @@ class CrashShieldTests: XCTestCase {
         "app_id": "2416630768476176",
         "device_model": "iPad5,3",
         "device_os": "ios",
-        "device_os_version": "13.1.3"
-      ]
+        "device_os_version": "13.1.3",
+      ],
     ]
     return crashLogs
   }

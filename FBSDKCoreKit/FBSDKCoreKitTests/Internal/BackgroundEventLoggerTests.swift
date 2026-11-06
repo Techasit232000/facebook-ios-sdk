@@ -1,48 +1,79 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import TestTools
 import XCTest
 
-class BackgroundEventLoggerTests: XCTestCase {
+final class BackgroundEventLoggerTests: XCTestCase {
 
-  let bundleWithIdentifier = TestBundle(infoDictionary: ["BGTaskSchedulerPermittedIdentifiers": ["123"]])
-  let bundleWithoutIdentifier = TestBundle()
-  let logger = TestEventLogger()
-  var backgroundEventLogger: BackgroundEventLogger! // swiftlint:disable:this implicitly_unwrapped_optional
+  // swiftlint:disable implicitly_unwrapped_optional
+  var bundleWithIdentifier: TestBundle!
+  var bundleWithoutIdentifier: TestBundle!
+  var logger: TestEventLogger!
+  var backgroundEventLogger: BackgroundEventLogger!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
+    bundleWithIdentifier = TestBundle(infoDictionary: ["BGTaskSchedulerPermittedIdentifiers": ["123"]])
+    bundleWithoutIdentifier = TestBundle()
+    logger = TestEventLogger()
 
-    backgroundEventLogger = BackgroundEventLogger(
-      infoDictionaryProvider: bundleWithIdentifier,
-      eventLogger: logger
+    BackgroundEventLogger.setDependencies(
+      .init(
+        infoDictionaryProvider: bundleWithIdentifier,
+        eventLogger: logger
+      )
+    )
+    backgroundEventLogger = BackgroundEventLogger()
+  }
+
+  override func tearDown() {
+    bundleWithIdentifier = nil
+    bundleWithoutIdentifier = nil
+    logger = nil
+    backgroundEventLogger = nil
+    BackgroundEventLogger.resetDependencies()
+    super.tearDown()
+  }
+
+  func testDefaultTypeDependencies() throws {
+    BackgroundEventLogger.resetDependencies()
+    let dependencies = try BackgroundEventLogger.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.infoDictionaryProvider as AnyObject,
+      Bundle.main,
+      .defaultDependency("the main bundle", for: "providing dictionaries")
+    )
+
+    XCTAssertIdentical(
+      dependencies.eventLogger as AnyObject,
+      AppEvents.shared,
+      .defaultDependency("the shared AppEvents", for: "event logging")
     )
   }
 
-  func testCreating() {
-    XCTAssertTrue(
-      backgroundEventLogger.infoDictionaryProvider is TestBundle,
-      "Should use the provided info dictionary provider type"
+  func testCustomTypeDependencies() throws {
+    let dependencies = try BackgroundEventLogger.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.infoDictionaryProvider as AnyObject,
+      bundleWithIdentifier,
+      .customDependency(for: "providing dictionaries")
     )
-    XCTAssertTrue(
-      backgroundEventLogger.eventLogger is TestEventLogger,
-      "Should use the provided event logger type"
+
+    XCTAssertIdentical(
+      dependencies.eventLogger as AnyObject,
+      logger,
+      .customDependency(for: "event logging")
     )
   }
 
@@ -78,20 +109,38 @@ class BackgroundEventLoggerTests: XCTestCase {
 
   func testIsNewBackgroundRefreshWithIdentifiers() {
     XCTAssertTrue(
-      backgroundEventLogger._isNewBackgroundRefresh(),
+      backgroundEventLogger.isNewBackgroundRefresh,
       "Should expect background refresh API is the new one if the identifier exists"
     )
   }
 
   func testIsNewBackgroundRefreshWithoutIdentifiers() {
-    backgroundEventLogger = BackgroundEventLogger(
-      infoDictionaryProvider: bundleWithoutIdentifier,
-      eventLogger: logger
+    BackgroundEventLogger.resetDependencies()
+    BackgroundEventLogger.setDependencies(
+      .init(
+        infoDictionaryProvider: bundleWithoutIdentifier,
+        eventLogger: logger
+      )
     )
+    backgroundEventLogger = BackgroundEventLogger()
 
     XCTAssertFalse(
-      backgroundEventLogger._isNewBackgroundRefresh(),
+      backgroundEventLogger.isNewBackgroundRefresh,
       "Should expect background refresh API is the new one if the identifier exists"
     )
+  }
+}
+
+// swiftformat:disable extensionaccesscontrol
+
+// MARK: - Assumptions
+
+fileprivate extension String {
+  static func defaultDependency(_ dependency: String, for type: String) -> String {
+    "The BackgroundEventLogger type uses \(dependency) as its \(type) dependency by default"
+  }
+
+  static func customDependency(for type: String) -> String {
+    "The BackgroundEventLogger type uses a custom \(type) dependency when provided"
   }
 }

@@ -1,20 +1,12 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import XCTest
 
@@ -23,20 +15,21 @@ protocol WindowMoving {
   func didMoveToWindow()
 }
 
-// swiftformat:disable indent
-class EventBindingManagerTests: XCTestCase,
-                                UITableViewDelegate, // swiftlint:disable:this indentation_width
-                                UICollectionViewDelegate {
-  // swiftformat:enable indent
+final class EventBindingManagerTests: XCTestCase, UITableViewDelegate, UICollectionViewDelegate {
 
-  var manager: EventBindingManager! // swiftlint:disable:this implicitly_unwrapped_optional
+  lazy var manager = EventBindingManager(
+    json: SampleRawRemoteEventBindings.sampleDictionary,
+    swizzler: TestSwizzler.self,
+    eventLogger: eventLogger
+  )
+
   var bindings = SampleEventBinding.validEventBindings
   let eventLogger = TestEventLogger()
 
   let expectedEvidenceWithoutReactNative = [
     SwizzleEvidence(selector: #selector(UIControl.didMoveToWindow), class: UIControl.self),
     SwizzleEvidence(selector: #selector(setter: UITableView.delegate), class: UITableView.self),
-    SwizzleEvidence(selector: #selector(setter: UICollectionView.delegate), class: UICollectionView.self)
+    SwizzleEvidence(selector: #selector(setter: UICollectionView.delegate), class: UICollectionView.self),
   ]
 
   override func setUp() {
@@ -44,12 +37,6 @@ class EventBindingManagerTests: XCTestCase,
 
     registerReactNativeClasses()
     TestSwizzler.reset()
-
-    manager = EventBindingManager(
-      json: SampleRawRemoteEventBindings.sampleDictionary,
-      swizzler: TestSwizzler.self,
-      eventLogger: eventLogger
-    )
   }
 
   // MARK: - Dependencies
@@ -80,7 +67,6 @@ class EventBindingManagerTests: XCTestCase,
   }
 
   func testCreatingWithReactNativeUnavailable() {
-    manager = nil
     deregisterReactNativeClasses()
     manager = EventBindingManager(swizzler: TestSwizzler.self, eventLogger: eventLogger)
     XCTAssertFalse(
@@ -110,7 +96,7 @@ class EventBindingManagerTests: XCTestCase,
       "UITableView",
       "UIControl",
       "UICollectionView",
-      "RCTView"
+      "RCTView",
     ])
     XCTAssertEqual(
       classNames,
@@ -129,7 +115,6 @@ class EventBindingManagerTests: XCTestCase,
   }
 
   func testStartingWithEventsWhenNotStarted() {
-    manager = nil
     deregisterReactNativeClasses()
     manager = EventBindingManager(
       json: SampleRawRemoteEventBindings.sampleDictionary,
@@ -181,9 +166,9 @@ class EventBindingManagerTests: XCTestCase,
           "FBSDKCoreKitTests.SwizzleEvidence(selector: didMoveToWindow, class: RCTImageView)",
           "FBSDKCoreKitTests.SwizzleEvidence(selector: _updateAndDispatchTouches:eventName:, class: RCTTouchHandler)",
           "FBSDKCoreKitTests.SwizzleEvidence(selector: setDelegate:, class: UITableView)",
-          "FBSDKCoreKitTests.SwizzleEvidence(selector: setDelegate:, class: UICollectionView)"
+          "FBSDKCoreKitTests.SwizzleEvidence(selector: setDelegate:, class: UICollectionView)",
         ]
-        .joined(separator: ", ")
+          .joined(separator: ", ")
       )
       .appending("]")
 
@@ -279,7 +264,6 @@ class EventBindingManagerTests: XCTestCase,
 
   // MARK: - Helpers
 
-  // swiftlint:disable indentation_width
   func registerReactNativeClasses() {
     if objc_lookUpClass("RCTRootView") == nil,
        let touchHandler: AnyClass = objc_allocateClassPair(NSObject.self, "RCTTouchHandler", 0),
@@ -308,7 +292,6 @@ class EventBindingManagerTests: XCTestCase,
       objc_disposeClassPair(view)
     }
   }
-  // swiftlint:enable indentation_width
 
   enum ViewHierarchies {
 

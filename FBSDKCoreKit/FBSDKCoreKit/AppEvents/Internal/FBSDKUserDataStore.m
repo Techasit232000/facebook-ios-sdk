@@ -1,23 +1,12 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKUserDataStore.h"
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #import "FBSDKAppEventUserDataType.h"
@@ -39,6 +28,34 @@ static dispatch_queue_t serialQueue;
   hashedUserData = [FBSDKUserDataStore initializeUserData:FBSDKUserDataKey];
   internalHashedUserData = [FBSDKUserDataStore initializeUserData:FBSDKInternalUserDataKey];
   enabledRules = [NSMutableSet new];
+}
+
+- (void)setUserEmail:(nullable NSString *)email
+           firstName:(nullable NSString *)firstName
+            lastName:(nullable NSString *)lastName
+               phone:(nullable NSString *)phone
+         dateOfBirth:(nullable NSString *)dateOfBirth
+              gender:(nullable NSString *)gender
+                city:(nullable NSString *)city
+               state:(nullable NSString *)state
+                 zip:(nullable NSString *)zip
+             country:(nullable NSString *)country
+{
+  __block NSString *externalId = nil;
+  dispatch_sync(serialQueue, ^{
+    externalId = [FBSDKTypeUtility dictionary:hashedUserData objectForKey:FBSDKAppEventExternalId ofType:NSString.class];
+  });
+  [self setUserEmail:email
+           firstName:firstName
+            lastName:lastName
+               phone:phone
+         dateOfBirth:dateOfBirth
+              gender:gender
+                city:city
+               state:state
+                 zip:zip
+             country:country
+          externalId:externalId];
 }
 
 - (void)setUserEmail:(nullable NSString *)email
@@ -89,7 +106,7 @@ static dispatch_queue_t serialQueue;
   }
 
   dispatch_async(serialQueue, ^{
-    hashedUserData = [ud mutableCopy];
+    hashedUserData = ud.mutableCopy;
     [NSUserDefaults.standardUserDefaults setObject:[self stringByHashedData:hashedUserData]
                                             forKey:FBSDKUserDataKey];
   });
@@ -187,8 +204,6 @@ static dispatch_queue_t serialQueue;
   return hashedData;
 }
 
-#pragma mark - Helper Methods
-
 + (NSMutableDictionary<NSString *, NSString *> *)initializeUserData:(NSString *)userDataKey
 {
   NSString *userData = [NSUserDefaults.standardUserDefaults stringForKey:userDataKey];
@@ -232,7 +247,7 @@ static dispatch_queue_t serialQueue;
 {
   NSString *normalizedData = @"";
   NSSet<FBSDKAppEventUserDataType> *set = [NSSet setWithArray:
-                                           @[FBSDKAppEventEmail, FBSDKAppEventFirstName, FBSDKAppEventLastName, FBSDKAppEventCity, FBSDKAppEventState, FBSDKAppEventCountry]];
+                                           @[FBSDKAppEventEmail, FBSDKAppEventFirstName, FBSDKAppEventLastName, FBSDKAppEventCity, FBSDKAppEventState, FBSDKAppEventCountry, FBSDKAppEventDateOfBirth, FBSDKAppEventZip]];
   if ([set containsObject:type]) {
     normalizedData = [data stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
     normalizedData = normalizedData.lowercaseString;

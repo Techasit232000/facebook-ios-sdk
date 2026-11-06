@@ -1,24 +1,14 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
 
-class GraphRequestFactoryTests: XCTestCase {
+final class GraphRequestFactoryTests: XCTestCase {
 
   let factory = GraphRequestFactory()
 
@@ -33,21 +23,314 @@ class GraphRequestFactoryTests: XCTestCase {
     guard let graphRequest = request as? GraphRequest else {
       return XCTFail("Should create a request of the correct concrete type")
     }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "foo",
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get
+    )
+  }
 
-    XCTAssertEqual(
-      graphRequest.graphPath,
-      "me",
-      "Should provide the graph path to the underlying type"
+  func testUseAlternative1() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      httpMethod: .post,
+      useAlternativeDefaultDomainPrefix: false
     )
-    XCTAssertEqual(
-      graphRequest.parameters as? [String: String],
-      ["some": "thing"],
-      "Should provide the parameters to the underlying type"
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: false
     )
-    XCTAssertEqual(
-      graphRequest.httpMethod,
-      .get,
-      "Should provide the HTTP method to the underlying type"
+  }
+
+  func testUseAlternative2() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      tokenString: "test_token_string",
+      httpMethod: .post,
+      flags: [],
+      forAppEvents: true,
+      useAlternativeDefaultDomainPrefix: false
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative3() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      tokenString: "test_token_string",
+      httpMethod: .post,
+      flags: [],
+      useAlternativeDefaultDomainPrefix: false
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative4() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      tokenString: "test_token_string",
+      version: "17.0",
+      httpMethod: .post,
+      forAppEvents: true,
+      useAlternativeDefaultDomainPrefix: false
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: "17.0",
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative5() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      useAlternativeDefaultDomainPrefix: false
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative6() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      useAlternativeDefaultDomainPrefix: false
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["fields": ""],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative7() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      flags: [],
+      useAlternativeDefaultDomainPrefix: false
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternativeDefaultValue1() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      httpMethod: .post
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue2() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      tokenString: "test_token_string",
+      httpMethod: .post,
+      flags: [],
+      forAppEvents: true
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue3() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      tokenString: "test_token_string",
+      httpMethod: .post,
+      flags: []
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue4() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      tokenString: "test_token_string",
+      version: "17.0",
+      httpMethod: .post,
+      forAppEvents: true
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: "17.0",
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue5() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"]
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue6() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me"
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["fields": ""],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue7() {
+    let request = factory.createGraphRequest(
+      withGraphPath: "me",
+      parameters: ["some": "thing"],
+      flags: []
+    )
+    guard let graphRequest = request as? GraphRequest else {
+      return XCTFail("Should create a request of the correct concrete type")
+    }
+    GraphRequestTests.verifyRequest(
+      graphRequest,
+      expectedGraphPath: "me",
+      expectedParameters: ["some": "thing"],
+      expectedTokenString: nil,
+      expectedVersion: FBSDK_DEFAULT_GRAPH_API_VERSION,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: true
     )
   }
 }

@@ -1,25 +1,15 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import Foundation
 
 @objcMembers
-public class Fuzzer: NSObject {
+public final class Fuzzer: NSObject {
 
   private static let values: [Any] = [
     // Booleans
@@ -49,7 +39,7 @@ public class Fuzzer: NSObject {
     "Foo".data(using: .utf8) ?? Data(),
     Data(count: 100),
 
-    // swiftlint:disable force_try
+    // swiftlint:disable:next force_try
     try! JSONSerialization.data(withJSONObject: ["foo": "bar"], options: .fragmentsAllowed),
     // swiftlint:enable force_try
     // Special Characters
@@ -58,8 +48,8 @@ public class Fuzzer: NSObject {
     [],
     [1, 2, 3],
     [1, 2, 3, "a", "b", "c"],
-    (0...100),
-    ("a"..<"z"),
+    0 ... 100,
+    "a" ..< "z",
     // Dictionaries
     "[:]",
     [:],
@@ -67,7 +57,7 @@ public class Fuzzer: NSObject {
     ["": [1, 2, 3]],
     ["Foo": true],
     ["Foo": ["Bar": "Baz"]],
-    ["Foo": ["a", 1, [:]]]
+    ["Foo": ["a", 1, [:]]],
   ]
 
   public class var random: AnyObject {
@@ -112,9 +102,13 @@ public class Fuzzer: NSObject {
       else if var values = json[key] as? [Any] {
         json[key] = Bool.random() ? values : randomizeInPlace(array: &values)
       } else {
-        if Bool.random() {
+        // Two independent coin flips, not one condition tested twice: randomize half the
+        // time, drop a quarter, leave a quarter alone.
+        let shouldRandomize = Bool.random()
+        let shouldRemove = Bool.random()
+        if shouldRandomize {
           json[key] = random
-        } else if Bool.random() {
+        } else if shouldRemove {
           json.removeValue(forKey: key)
         }
       }

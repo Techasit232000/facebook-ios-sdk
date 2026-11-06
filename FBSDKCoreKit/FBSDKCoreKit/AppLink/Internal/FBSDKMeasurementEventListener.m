@@ -1,64 +1,64 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
-#import "FBSDKMeasurementEventListener.h"
-
+#import <FBSDKCoreKit/FBSDKMeasurementEventListener.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
-#import "FBSDKAppEvents+Internal.h"
-#import "FBSDKAppEvents+SourceApplicationTracking.h"
-#import "FBSDKMeasurementEvent.h"
-#import "FBSDKTimeSpentData.h"
+#import "FBSDKMeasurementEventNames.h"
 
 static NSString *const FBSDKMeasurementEventName = @"event_name";
 static NSString *const FBSDKMeasurementEventArgs = @"event_args";
 static NSString *const FBSDKMeasurementEventPrefix = @"bf_";
 
+@interface FBSDKMeasurementEventListener ()
+
+@property (nullable, nonatomic) id<FBSDKEventLogging> eventLogger;
+@property (nullable, nonatomic) id<FBSDKSourceApplicationTracking> sourceApplicationTracker;
+
+@end
+
 @implementation FBSDKMeasurementEventListener
 
-+ (instancetype)defaultListener
+- (instancetype)initWithEventLogger:(id<FBSDKEventLogging>)eventLogger
+           sourceApplicationTracker:(id<FBSDKSourceApplicationTracking>)sourceApplicationTracker
 {
-  static dispatch_once_t dispatchOnceLocker = 0;
-  static FBSDKMeasurementEventListener *defaultListener = nil;
-  dispatch_once(&dispatchOnceLocker, ^{
-    defaultListener = [self new];
+  if ((self = [super init])) {
+    _eventLogger = eventLogger;
+    _sourceApplicationTracker = sourceApplicationTracker;
+  }
+  return self;
+}
+
+- (void)registerForAppLinkMeasurementEvents
+{
+  static dispatch_once_t nonce = 0;
+  dispatch_once(&nonce, ^{
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
-    [center addObserver:defaultListener
+    [center addObserver:self
                selector:@selector(logFBAppEventForNotification:)
                    name:FBSDKMeasurementEventNotification
                  object:nil];
   });
-  return defaultListener;
 }
 
-- (void)logFBAppEventForNotification:(NSNotification *)note
+- (void)logFBAppEventForNotification:(NSNotification *)notification
 {
   // when catch al_nav_in event, we set source application for FBAppEvents.
-  if ([note.userInfo[FBSDKMeasurementEventName] isEqualToString:@"al_nav_in"]) {
-    NSString *sourceApplication = note.userInfo[FBSDKMeasurementEventArgs][@"sourceApplication"];
+  if ([notification.userInfo[FBSDKMeasurementEventName] isEqualToString:@"al_nav_in"]) {
+    NSString *sourceApplication = notification.userInfo[FBSDKMeasurementEventArgs][@"sourceApplication"];
     if (sourceApplication) {
-      [FBSDKAppEvents.shared setSourceApplication:sourceApplication isFromAppLink:YES];
+      [self.sourceApplicationTracker setSourceApplication:sourceApplication isFromAppLink:YES];
     }
   }
-  NSDictionary<NSString *, id> *eventArgs = note.userInfo[FBSDKMeasurementEventArgs];
-  NSMutableDictionary<NSString *, id> *logData = [NSMutableDictionary new];
+  NSDictionary<NSString *, id> *eventArgs = notification.userInfo[FBSDKMeasurementEventArgs];
+  NSMutableDictionary<FBSDKAppEventParameterName, id> *logData = [NSMutableDictionary new];
   for (NSString *key in eventArgs.allKeys) {
     NSError *error = nil;
     NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"[^0-9a-zA-Z _-]" options:0 error:&error];
@@ -69,9 +69,9 @@ static NSString *const FBSDKMeasurementEventPrefix = @"bf_";
     safeKey = [safeKey stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" -"]];
     [FBSDKTypeUtility dictionary:logData setObject:eventArgs[key] forKey:safeKey];
   }
-  [FBSDKAppEvents logInternalEvent:[FBSDKMeasurementEventPrefix stringByAppendingString:note.userInfo[FBSDKMeasurementEventName]]
-                        parameters:logData
-                isImplicitlyLogged:YES];
+  [self.eventLogger logInternalEvent:[FBSDKMeasurementEventPrefix stringByAppendingString:notification.userInfo[FBSDKMeasurementEventName]]
+                          parameters:logData
+                  isImplicitlyLogged:YES];
 }
 
 @end

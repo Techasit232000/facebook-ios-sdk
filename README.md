@@ -13,6 +13,9 @@ at https://developers.facebook.com/docs/ios
 
 Please take a moment and [subscribe to releases](https://docs.github.com/en/enterprise/2.15/user/articles/watching-and-unwatching-repositories) so that you can be notified about new features, deprecations, and critical fixes. To see information about the latest release, consult our [changelog](CHANGELOG.md).
 
+|:warning: Be Advised :warning:|
+|:---|
+|<p>We have begun rewriting the iOS SDK in Swift in order to modernize the code base.</p><p>Please monitor the changelog for updates to existing interfaces but keep in mind that some interfaces will be unstable during this process. As such, updating to a minor version may introduce compilation issues related to language interoperability. Using symbols now defined in Swift may require using `@import` syntax from Objective-C and using C++ will likely require workarounds like creating wrappers in Objective-C.</p>Please bear with us as we work towards providing an improved experience for integrating with the Facebook platform.|
 
 ## TRY IT OUT
 
@@ -48,7 +51,7 @@ Please report bugs or issues to our designated developer support team -- <https:
 
 You can also visit our [Facebook Developer Community Forum](https://developers.facebook.com/community/),
 join the [Facebook Developers Group on Facebook](https://www.facebook.com/groups/fbdevelopers/),
-ask questions on [Stack Overflow](http://facebook.stackoverflow.com),
+ask questions on [Stack Overflow](https://stackoverflow.com/questions/tagged/facebook-ios-sdk),
 or open an issue in this repository.
 
 ## CONTRIBUTE
@@ -58,6 +61,8 @@ Facebook welcomes contributions to our SDKs. Please see the [CONTRIBUTING](CONTR
 ## LICENSE
 
 See the [LICENSE](LICENSE) file.
+
+Copyright © Meta Platforms, Inc
 
 ## SECURITY POLICY
 

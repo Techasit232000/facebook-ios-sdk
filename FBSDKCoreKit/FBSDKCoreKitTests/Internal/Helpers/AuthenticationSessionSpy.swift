@@ -1,45 +1,38 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import Foundation
+import AuthenticationServices
+
+@testable import FBSDKCoreKit
 
 @objcMembers
-class AuthenticationSessionSpy: NSObject, AuthenticationSessionHandling {
+final class AuthenticationSessionSpy: NSObject, AuthenticationSessionProtocol {
 
-  var capturedUrl: URL
-  var capturedCallbackUrlScheme: String?
-  var capturedCompletionHandler: FBSDKAuthenticationCompletionHandler?
+  var capturedURL: URL
+  var capturedCallbackURLScheme: String?
+  var capturedCompletionHandler: AuthenticationCompletionHandler?
   var startCallCount = 0
   var cancelCallCount = 0
+  var presentationContextProvider: ASWebAuthenticationPresentationContextProviding?
 
-  static var makeDefaultSpy: AuthenticationSessionSpy {
+  static func makeDefaultSpy() -> AuthenticationSessionSpy {
     guard let url = URL(string: "http://example.com") else { fatalError("Url creation failed") }
 
     return AuthenticationSessionSpy(url: url, callbackURLScheme: nil) { _, _ in }
   }
 
-  required init(
+  init(
     url: URL,
     callbackURLScheme: String?,
-    completionHandler: @escaping FBSDKAuthenticationCompletionHandler
+    completionHandler: @escaping (URL?, Error?) -> Void
   ) {
-    capturedUrl = url
-    capturedCallbackUrlScheme = callbackURLScheme
+    capturedURL = url
+    capturedCallbackURLScheme = callbackURLScheme
     capturedCompletionHandler = completionHandler
   }
 

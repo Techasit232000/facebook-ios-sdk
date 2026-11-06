@@ -1,25 +1,45 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
+import Foundation
+import TestTools
 import XCTest
 
-class BasicUtilityTests: XCTestCase {
+final class BasicUtilityTests: XCTestCase {
+
+  func testInvalidObjectToJSONString() throws {
+    let invalidObject = TestErrorFactory()
+
+    XCTAssertThrowsError(
+      _ = try BasicUtility.jsonString(for: invalidObject) { object, _ in object },
+      "An error should be thrown"
+    ) { error in
+      let nsError = error as NSError
+      XCTAssertEqual(nsError.code, 2, "An invalid argument error code should be used")
+      XCTAssertEqual(
+        nsError.userInfo["com.facebook.sdk:FBSDKErrorArgumentNameKey"] as? String,
+        "object",
+        "The error name should refer to the object parameter"
+      )
+      XCTAssertIdentical(
+        nsError.userInfo["com.facebook.sdk:FBSDKErrorArgumentValueKey"] as AnyObject,
+        invalidObject,
+        "The error value should contain the object argument"
+      )
+      XCTAssertEqual(
+        nsError.userInfo["com.facebook.sdk:FBSDKErrorDeveloperMessageKey"] as? String,
+        "Invalid object for JSON serialization.",
+        "The error message should indicate that the object argument cannot be serialized to JSON"
+      )
+    }
+  }
 
   func testJSONString() throws {
     let urlString = "https://www.facebook.com"
@@ -54,7 +74,7 @@ class BasicUtilityTests: XCTestCase {
     let expectedDictionary = [
       "key1": "",
       "key2": "value2",
-      "key3": "value 3 = foo"
+      "key3": "value 3 = foo",
     ]
     XCTAssertEqual(dictionary, expectedDictionary)
     let queryString = try BasicUtility.queryString(with: dictionary, invalidObjectHandler: nil)

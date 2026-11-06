@@ -1,35 +1,26 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
-class AppLinkResolverTests: XCTestCase {
+final class AppLinkResolverTests: XCTestCase {
   enum Keys {
-    static let appLinkURL = URL(string: "http://example.com/1234567890")! // swiftlint:disable:this force_unwrapping
-    static let appLinkURL2 = URL(string: "http://example.com/0987654321")! // swiftlint:disable:this force_unwrapping
+    static let appLinkURL = URL(string: "http://example.com/1234567890")!
+    static let appLinkURL2 = URL(string: "http://example.com/0987654321")!
     static let appLinks = "app_links"
     static let iPhone = "iphone"
     static let iPad = "ipad"
     static let ios = "ios"
     static let android = "android"
-    static let id = "id" // swiftlint:disable:this identifier_name
+    static let id = "id"
     static let appName = "app_name"
     static let appStoreId = "app_store_id"
     static let package = "package"
@@ -45,59 +36,65 @@ class AppLinkResolverTests: XCTestCase {
     static let url = "example://things/1234567890"
     static let fallbackURL = "http://www.example.com/somethingelse"
     static let package = "com.example.app"
-    static let `true` = "true"
-    static let `false` = "false"
   }
 
   let linkValues1 = [
     Keys.appName: Values.appName,
     Keys.appStoreId: Values.appStoreId,
-    Keys.url: Values.url
+    Keys.url: Values.url,
   ]
   let linkValues2 = [
     Keys.appName: Values.appName,
     Keys.appStoreId: Values.appStoreId2,
-    Keys.url: Values.url
+    Keys.url: Values.url,
   ]
   let androidLinkValues = [
     Keys.appName: Values.appName,
     Keys.package: Values.package,
-    Keys.url: Values.url
+    Keys.url: Values.url,
   ]
 
   let queryParameters = [String: String]()
 
-  let builder = TestAppLinkResolverRequestBuilder()
-  let clientTokenProvider = TestClientTokenProvider(clientToken: "clienttoken")
-  let accessTokenProvider = TestAccessTokenWallet.self
-  let graphRequest = TestGraphRequest()
+  var accessTokenProvider = TestAccessTokenWallet.self
   var resolved: AppLink?
   var error: Error?
 
-  lazy var resolver = AppLinkResolver(
-    userInterfaceIdiom: .phone,
-    requestBuilder: builder,
-    clientTokenProvider: clientTokenProvider,
-    accessTokenProvider: accessTokenProvider
-  )
+  // swiftlint:disable implicitly_unwrapped_optional
+  var resolver: AppLinkResolver!
+  var builder: TestAppLinkResolverRequestBuilder!
+  var clientTokenProvider: TestClientTokenProvider!
+  var graphRequest: TestGraphRequest!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
 
+    builder = TestAppLinkResolverRequestBuilder()
+    clientTokenProvider = TestClientTokenProvider(clientToken: "clienttoken")
+    graphRequest = TestGraphRequest()
     builder.stubbedGraphRequest = graphRequest
+    resolver = AppLinkResolver()
+
+    AppLinkResolver.setDependencies(
+      .init(
+        requestBuilder: builder,
+        clientTokenProvider: clientTokenProvider,
+        accessTokenProvider: accessTokenProvider
+      )
+    )
   }
 
   override func tearDown() {
-    super.tearDown()
+    resolver = nil
+    builder = nil
+    clientTokenProvider = nil
+    graphRequest = nil
 
     TestAccessTokenWallet.reset()
-  }
+    AppLinkResolver.resetDependencies()
 
-  func testDefaultDependecies() {
-    resolver = AppLinkResolver(userInterfaceIdiom: .phone)
-    XCTAssertTrue(resolver.requestBuilder is AppLinkResolverRequestBuilder)
-    XCTAssertTrue(resolver.clientTokenProvider === Settings.shared)
-    XCTAssertTrue(resolver.accessTokenProvider is AccessToken.Type)
+    super.tearDown()
   }
 
   func testResolvingWithPhoneIdiom() {
@@ -107,10 +104,10 @@ class AppLinkResolverTests: XCTestCase {
       Keys.appLinkURL.absoluteString: [
         Keys.appLinks: [
           Keys.iPhone: [linkValues2],
-          Keys.ios: [linkValues1]
+          Keys.ios: [linkValues1],
         ],
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -137,10 +134,10 @@ class AppLinkResolverTests: XCTestCase {
       Keys.appLinkURL.absoluteString: [
         Keys.appLinks: [
           Keys.iPad: [linkValues2],
-          Keys.ios: [linkValues1]
+          Keys.ios: [linkValues1],
         ],
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -167,10 +164,10 @@ class AppLinkResolverTests: XCTestCase {
       Keys.appLinkURL.absoluteString: [
         Keys.appLinks: [
           Keys.android: [androidLinkValues],
-          Keys.ios: [linkValues1]
+          Keys.ios: [linkValues1],
         ],
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -189,8 +186,8 @@ class AppLinkResolverTests: XCTestCase {
 
     let result = [
       Keys.appLinkURL.absoluteString: [
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -214,11 +211,11 @@ class AppLinkResolverTests: XCTestCase {
 
     let result = [
       Keys.appLinkURL.absoluteString: [
-        Keys.id: Keys.appLinkURL.absoluteString
+        Keys.id: Keys.appLinkURL.absoluteString,
       ],
       Keys.appLinkURL2.absoluteString: [
-        Keys.id: Keys.appLinkURL2.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL2.absoluteString,
+      ],
     ]
 
     var resolved: [URL: AppLink]?
@@ -245,8 +242,8 @@ class AppLinkResolverTests: XCTestCase {
 
     let result = [
       Keys.appLinkURL.absoluteString: [
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -272,11 +269,11 @@ class AppLinkResolverTests: XCTestCase {
         Keys.appLinks: [
           Keys.web: [
             Keys.url: Values.fallbackURL,
-            Keys.shouldFallback: Values.true
-          ]
+            Keys.shouldFallback: true,
+          ],
         ],
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -298,11 +295,11 @@ class AppLinkResolverTests: XCTestCase {
       Keys.appLinkURL.absoluteString: [
         Keys.appLinks: [
           Keys.web: [
-            Keys.shouldFallback: Values.true
-          ]
+            Keys.shouldFallback: true,
+          ],
         ],
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -325,11 +322,11 @@ class AppLinkResolverTests: XCTestCase {
         Keys.appLinks: [
           Keys.web: [
             Keys.url: Values.fallbackURL,
-            Keys.shouldFallback: Values.false
-          ]
+            Keys.shouldFallback: false,
+          ],
         ],
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) {
@@ -373,8 +370,8 @@ class AppLinkResolverTests: XCTestCase {
   func testSetsCache() throws {
     let result = [
       Keys.appLinkURL.absoluteString: [
-        Keys.id: Keys.appLinkURL.absoluteString
-      ]
+        Keys.id: Keys.appLinkURL.absoluteString,
+      ],
     ]
 
     resolver.appLink(from: Keys.appLinkURL) { _, _ in }

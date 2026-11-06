@@ -1,23 +1,15 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import XCTest
 
 @objcMembers
-class TestUserDataStore: NSObject, UserDataPersisting {
+final class TestUserDataStore: NSObject, _UserDataPersisting {
 
   var wasGetUserDataCalled = false
   var wasClearUserDataCalled = false
@@ -35,6 +27,36 @@ class TestUserDataStore: NSObject, UserDataPersisting {
   var capturedSetUserDataForTypeData: String?
   var capturedSetUserDataForTypeType: FBSDKAppEventUserDataType?
   var capturedClearUserDataForTypeType: FBSDKAppEventUserDataType?
+  var getInternalHashedDataForTypeCallCount = 0
+  var capturedInternalHashedDataForTypeData: String?
+  var capturedInternalHashedDataForTypeType: FBSDKAppEventUserDataType?
+  var capturedEnableRules: [String]?
+
+  func setUser( // swiftlint:disable:this function_parameter_count
+    email: String?,
+    firstName: String?,
+    lastName: String?,
+    phone: String?,
+    dateOfBirth: String?,
+    gender: String?,
+    city: String?,
+    state: String?,
+    zip: String?,
+    country: String?
+  ) {
+    capturedEmail = email
+    capturedFirstName = firstName
+    capturedLastName = lastName
+    capturedPhone = phone
+    capturedDateOfBirth = dateOfBirth
+    capturedGender = gender
+    capturedCity = city
+    capturedState = state
+    capturedZip = zip
+    capturedCountry = country
+    // External ID is not passed in this method, preserve existing behavior
+    capturedExternalId = nil
+  }
 
   func setUser( // swiftlint:disable:this function_parameter_count
     email: String?,
@@ -78,5 +100,19 @@ class TestUserDataStore: NSObject, UserDataPersisting {
 
   func clearUserData(forType type: FBSDKAppEventUserDataType) {
     capturedClearUserDataForTypeType = type
+  }
+
+  func setEnabledRules(_ rules: [String]) {
+    capturedEnableRules = rules
+  }
+
+  func getInternalHashedData(forType type: FBSDKAppEventUserDataType) -> String? {
+    getInternalHashedDataForTypeCallCount += 1
+    return nil
+  }
+
+  func setInternalHashData(_ hashData: String?, forType type: FBSDKAppEventUserDataType) {
+    capturedInternalHashedDataForTypeData = hashData
+    capturedInternalHashedDataForTypeType = type
   }
 }

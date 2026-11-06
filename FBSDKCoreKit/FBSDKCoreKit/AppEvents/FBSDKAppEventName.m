@@ -1,20 +1,10 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "FBSDKAppEventName+Internal.h"
 
@@ -46,6 +36,7 @@ FBSDKAppEventName const FBSDKAppEventNameInitializeSDK = @"fb_sdk_initialize";
 FBSDKAppEventName const FBSDKAppEventNameBackgroundStatusAvailable = @"fb_sdk_background_status_available";
 FBSDKAppEventName const FBSDKAppEventNameBackgroundStatusDenied = @"fb_sdk_background_status_denied";
 FBSDKAppEventName const FBSDKAppEventNameBackgroundStatusRestricted = @"fb_sdk_background_status_restricted";
+FBSDKAppEventName const FBSDKAppEventNameSDKSettingsChanged = @"fb_sdk_settings_changed";
 
 // MARK: - E-Commerce
 
@@ -87,3 +78,10 @@ FBSDKAppEventName const FBSDKAppEventNamePushOpened = @"fb_mobile_push_opened";
 
 FBSDKAppEventName const FBSDKAppEventNameActivatedApp = @"fb_mobile_activate_app";
 FBSDKAppEventName const FBSDKAppEventNameDeactivatedApp = @"fb_mobile_deactivate_app";
+
+// MARK: - Auto Setup
+
+// Internal
+
+FBSDKAppEventName const FBSDKAppEventNameOptinAEMAutoSetup = @"fb_mobile_aem_auto_setup_opt_in";
+FBSDKAppEventName const FBSDKAppEventNameOptoutAEMAutoSetup = @"fb_mobile_aem_auto_setup_opt_out";

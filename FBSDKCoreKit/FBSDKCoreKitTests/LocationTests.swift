@@ -1,26 +1,18 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import XCTest
 
 // MARK: Creation
 
-class LocationTests: XCTestCase {
+final class LocationTests: XCTestCase {
 
   func testCreate() throws {
     let dict = ["id": "110843418940484", "name": "Seattle, Washington"]
@@ -29,7 +21,7 @@ class LocationTests: XCTestCase {
     XCTAssertEqual(location.name, dict["name"])
   }
 
-  func testCreateWithIdOnly() {
+  func testCreateWithIDOnly() {
     let dict = ["id": "110843418940484"]
     let location = Location(from: dict)
 
@@ -53,32 +45,26 @@ class LocationTests: XCTestCase {
     XCTAssertNil(Location(from: [:]), "Should not be able to create Location from empty dictionary")
   }
 
-  func testEncoding() throws {
+  func testEncodingAndDecoding() throws {
     let dict = ["id": "110843418940484", "name": "Seattle, Washington"]
     let location = try XCTUnwrap(Location(from: dict))
 
-    let coder = TestCoder()
-    location.encode(with: coder)
+    let decodedObject = try CodabilityTesting.encodeAndDecode(location)
 
-    XCTAssertEqual(
-      coder.encodedObject["FBSDKLocationIdCodingKey"] as? String,
-      location.id,
-      "Should encode the expected id value"
-    )
+    // Test Objects
+    XCTAssertNotIdentical(location, decodedObject, .isCodable)
+    XCTAssertEqual(location, decodedObject, .isCodable)
+
+    // Test Properties
+    XCTAssertEqual(location.id, decodedObject.id, .isCodable)
+    XCTAssertEqual(location.name, decodedObject.name, .isCodable)
   }
+}
 
-  func testDecoding() {
-    let coder = TestCoder()
-    let location = Location(coder: coder)
+// swiftformat:disable extensionaccesscontrol
 
-    XCTAssertNotNil(location)
-    XCTAssertTrue(
-      coder.decodedObject["FBSDKLocationIdCodingKey"] as? Any.Type == NSString.self,
-      "Should decode a string for the id key"
-    )
-    XCTAssertTrue(
-      coder.decodedObject["FBSDKLocationNameCodingKey"] as? Any.Type == NSString.self,
-      "Should decode a string for the name key"
-    )
-  }
+// MARK: - Assumptions
+
+fileprivate extension String {
+  static let isCodable = "Location should be encodable and decodable"
 }

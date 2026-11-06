@@ -1,30 +1,21 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
+@testable import FBSDKCoreKit
+
+import TestTools
 import XCTest
 
-class BridgeAPIResponseTests: XCTestCase {
+final class BridgeAPIResponseTests: XCTestCase {
   let request = TestBridgeAPIRequest(url: SampleURLs.valid)
   let bridgeProtocol = TestBridgeAPIProtocol()
   let queryItems = [URLQueryItem(name: "foo", value: "bar")]
-  lazy var responseURL: URL = {
-    SampleURLs.valid(queryItems: queryItems)
-  }()
+  lazy var responseURL = SampleURLs.valid(queryItems: queryItems)
 
   func testCreatingWithMinimalInput() {
     let response = BridgeAPIResponse(request: request, error: SampleError())
@@ -64,55 +55,6 @@ class BridgeAPIResponseTests: XCTestCase {
       response.error,
       "Should not have an error reference by default"
     )
-  }
-
-  func testCreatingWithInvalidProtocolSourceApplicationCombinations() {
-    request.protocol = bridgeProtocol
-    [
-      FBSDKBridgeAPIProtocolType.native,
-      .web
-    ]
-    .forEach { protocolType in
-      request.protocolType = protocolType
-
-      XCTAssertNil(
-        try? BridgeAPIResponse(
-          request: request,
-          responseURL: responseURL,
-          sourceApplication: "foo",
-          osVersionComparer: TestProcessInfo(stubbedOperatingSystemCheckResult: false)
-        ),
-        "Should not create a response when the source application is invalid for the protocol type"
-      )
-    }
-  }
-
-  func testCreatingWithValidProtocolAndSourceApplicationCombinations() {
-    request.protocol = bridgeProtocol
-
-    let pairs: [(type: FBSDKBridgeAPIProtocolType, sources: [String])] = [
-      (.native, ["com.facebook.foo", ".com.facebook.foo"]),
-      (.web, ["com.apple.mobilesafari", "com.apple.SafariViewService"])
-    ]
-
-    pairs.forEach { pair in
-      request.protocolType = pair.type
-      pair.sources.forEach { source in
-        let response = try? BridgeAPIResponse(
-          request: request,
-          responseURL: responseURL,
-          sourceApplication: source,
-          osVersionComparer: TestProcessInfo(stubbedOperatingSystemCheckResult: false)
-        )
-        XCTAssertNotNil(
-          response,
-          """
-          Should create a response when the source application \(source)
-          is valid for the protocol type \(String(describing: pair.type))
-          """
-        )
-      }
-    }
   }
 
   func testCreatingWithValidResponseParameters() {

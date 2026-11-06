@@ -1,35 +1,23 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKAppEventsStateManager.h"
-
-#import <Foundation/Foundation.h>
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
-#import "FBSDKAppEventsState.h"
-#import "FBSDKAppEventsUtility.h"
 #import "FBSDKLogger.h"
 #import "FBSDKUnarchiverProvider.h"
 
 @interface FBSDKAppEventsStateManager ()
 // A quick optimization to allow returning empty array if we know there are no persisted events.
 @property (nonatomic, readwrite, assign) BOOL canSkipDiskCheck;
+@property (nonatomic, strong) dispatch_queue_t persistQueue;
 @end
 
 @implementation FBSDKAppEventsStateManager
@@ -38,6 +26,7 @@
 {
   if ((self = [super init])) {
     _canSkipDiskCheck = NO;
+    _persistQueue = dispatch_queue_create("com.facebook.sdk.AppEventsStateManager", DISPATCH_QUEUE_SERIAL);
   }
   return self;
 }
@@ -53,17 +42,17 @@
   return instance;
 }
 
+// dispatch_sync ensures callers see a consistent view of the file after any
+// pending async persist completes. In practice, the blocking window is near-zero:
+// persist runs on willResignActive (backgrounding) and retrieve runs on
+// didBecomeActive (foregrounding), so the queue is drained by the time we get here.
 - (void)clearPersistedAppEventsStates
 {
-  [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
-                         logEntry:@"FBSDKAppEvents Persist: Clearing"];
-  [NSFileManager.defaultManager removeItemAtPath:[self filePath]
-                                           error:NULL];
-  self.canSkipDiskCheck = YES;
+  dispatch_sync(self.persistQueue, ^{
+    [self _clearPersistedAppEventsStates];
+  });
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 - (void)persistAppEventsData:(FBSDKAppEventsState *)appEventsState
 {
   NSString *msg = [NSString stringWithFormat:@"FBSDKAppEvents Persist: Writing %lu events", (unsigned long)appEventsState.events.count];
@@ -73,16 +62,64 @@
   if (!appEventsState.events.count) {
     return;
   }
-  NSMutableArray *existingEvents = [NSMutableArray arrayWithArray:[self retrievePersistedAppEventsStates]];
-  [FBSDKTypeUtility array:existingEvents addObject:appEventsState];
 
-  [NSKeyedArchiver archiveRootObject:existingEvents toFile:[self filePath]];
-  self.canSkipDiskCheck = NO;
+  // UIApplication.sharedApplication is unavailable in app extensions.
+  // Use NSClassFromString so this code is safe if the SDK is ever linked
+  // into an extension target.
+  __block UIBackgroundTaskIdentifier taskID = UIBackgroundTaskInvalid;
+  UIApplication *app = nil;
+  Class uiAppClass = NSClassFromString(@"UIApplication");
+  if (uiAppClass) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    app = [uiAppClass performSelector:NSSelectorFromString(@"sharedApplication")];
+#pragma clang diagnostic pop
+  }
+  if (app) {
+    taskID = [app beginBackgroundTaskWithExpirationHandler:^{
+      [app endBackgroundTask:taskID];
+      taskID = UIBackgroundTaskInvalid;
+    }];
+  }
+
+  dispatch_async(self.persistQueue, ^{
+    NSMutableArray<FBSDKAppEventsState *> *existingEvents = [NSMutableArray arrayWithArray:[self _retrievePersistedAppEventsStates]];
+    [FBSDKTypeUtility array:existingEvents addObject:appEventsState];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    [NSKeyedArchiver archiveRootObject:existingEvents toFile:[self filePath]];
+#pragma clang diagnostic pop
+    self.canSkipDiskCheck = NO;
+
+    if (app && taskID != UIBackgroundTaskInvalid) {
+      [app endBackgroundTask:taskID];
+    }
+  });
 }
 
-- (NSArray *)retrievePersistedAppEventsStates
+- (NSArray<FBSDKAppEventsState *> *)retrievePersistedAppEventsStates
 {
-  NSMutableArray *eventsStates = [NSMutableArray array];
+  __block NSArray<FBSDKAppEventsState *> *result;
+  dispatch_sync(self.persistQueue, ^{
+    result = [self _retrievePersistedAppEventsStates];
+  });
+  return result;
+}
+
+#pragma mark - Queue-internal helpers (must be called on persistQueue)
+
+- (void)_clearPersistedAppEventsStates
+{
+  [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
+                         logEntry:@"FBSDKAppEvents Persist: Clearing"];
+  [NSFileManager.defaultManager removeItemAtPath:[self filePath]
+                                           error:NULL];
+  self.canSkipDiskCheck = YES;
+}
+
+- (NSArray<FBSDKAppEventsState *> *)_retrievePersistedAppEventsStates
+{
+  NSMutableArray<FBSDKAppEventsState *> *eventsStates = [NSMutableArray array];
   if (!self.canSkipDiskCheck) {
     NSData *data = [[NSData alloc] initWithContentsOfFile:[self filePath] options:NSDataReadingMappedIfSafe error:NULL];
     id<FBSDKObjectDecoding> unarchiver = [FBSDKUnarchiverProvider createSecureUnarchiverFor:data];
@@ -96,16 +133,15 @@
     }
 
     NSString *msg = [NSString stringWithFormat:@"FBSDKAppEvents Persist: Read %lu event states. First state has %lu events",
-                     (unsigned long)eventsStates.count,
-                     (unsigned long)(eventsStates.count > 0 ? ((FBSDKAppEventsState *)[FBSDKTypeUtility array:eventsStates objectAtIndex:0]).events.count : 0)];
+                     eventsStates.count,
+                     ((FBSDKAppEventsState *)eventsStates.firstObject).events.count];
     [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorAppEvents
                            logEntry:msg];
-    [self clearPersistedAppEventsStates];
+    [self _clearPersistedAppEventsStates];
   }
   return eventsStates;
 }
 
-#pragma clang diagnostic pop
 
 #pragma mark - Private Helpers
 

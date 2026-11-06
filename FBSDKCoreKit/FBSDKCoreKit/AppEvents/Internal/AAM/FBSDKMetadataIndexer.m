@@ -1,37 +1,21 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
-#import "FBSDKMetadataIndexer.h"
-
-#import <UIKit/UIKit.h>
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKTypeUtility.h>
 #import <objc/runtime.h>
 #import <sys/sysctl.h>
 #import <sys/utsname.h>
+#import <UIKit/UIKit.h>
 
 #import "FBSDKAppEventUserDataType.h"
-#import "FBSDKAppEventsUtility.h"
-#import "FBSDKServerConfigurationManager.h"
-#import "FBSDKSwizzler.h"
-#import "FBSDKUserDataStore.h"
 #import "FBSDKUtility.h"
 #import "FBSDKViewHierarchy.h"
 
@@ -45,10 +29,11 @@ static NSString *const FIELD_K_DELIMITER = @",";
 
 @interface FBSDKMetadataIndexer ()
 
-@property (nonatomic, readonly, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *rules;
-@property (nonatomic, readonly, strong) NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *store;
-@property (nonatomic, readonly, strong) dispatch_queue_t serialQueue;
-@property (nonatomic, readonly, strong) FBSDKUserDataStore *userDataStore;
+@property (nonatomic, readonly) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *rules;
+@property (nonatomic, readonly) NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *store;
+@property (nonatomic, readonly) dispatch_queue_t serialQueue;
+@property (nonnull, nonatomic, readonly) id<FBSDKUserDataPersisting> userDataStore;
+@property (nonnull, nonatomic, readonly) Class<FBSDKSwizzling> swizzler;
 
 @end
 
@@ -64,18 +49,20 @@ static NSString *const FIELD_K_DELIMITER = @",";
   return instance;
 }
 
-- (instancetype)init
+- (instancetype)initWithUserDataStore:(nonnull id<FBSDKUserDataPersisting>)userDataStore
+                             swizzler:(nonnull Class<FBSDKSwizzling>)swizzler
 {
   _rules = [NSMutableDictionary new];
   _serialQueue = dispatch_queue_create("com.facebook.appevents.MetadataIndexer", DISPATCH_QUEUE_SERIAL);
-  _userDataStore = [FBSDKUserDataStore new];
+  _userDataStore = userDataStore;
+  _swizzler = swizzler;
   return self;
 }
 
 - (void)enable
 {
   @try {
-    if ([FBSDKAppEventsUtility shouldDropAppEvent]) {
+    if ([FBSDKAppEventsUtility.shared shouldDropAppEvents]) {
       return;
     }
 
@@ -110,7 +97,7 @@ static NSString *const FIELD_K_DELIMITER = @",";
     }
 
     if (isEnabled) {
-      self.userDataStore.enabledRules = _rules.allKeys;
+      [self.userDataStore setEnabledRules:_rules.allKeys];
       [self setupMetadataIndexing];
     }
   });
@@ -163,17 +150,13 @@ static NSString *const FIELD_K_DELIMITER = @",";
     }
   };
 
-  [FBSDKSwizzler swizzleSelector:@selector(didMoveToWindow) onClass:UIView.class withBlock:block named:@"metadataIndexingUIView"];
+  [self.swizzler swizzleSelector:@selector(didMoveToWindow) onClass:UIView.class withBlock:block named:@"metadataIndexingUIView"];
 
   // iOS 12: UITextField implements didMoveToWindow without calling parent implementation
-  if (@available(iOS 12, *)) {
-    [FBSDKSwizzler swizzleSelector:@selector(didMoveToWindow) onClass:UITextField.class withBlock:block named:@"metadataIndexingUITextField"];
-  } else {
-    [FBSDKSwizzler swizzleSelector:@selector(didMoveToWindow) onClass:UIControl.class withBlock:block named:@"metadataIndexingUIControl"];
-  }
+  [self.swizzler swizzleSelector:@selector(didMoveToWindow) onClass:UITextField.class withBlock:block named:@"metadataIndexingUITextField"];
 }
 
-- (NSArray<UIView *> *)getSiblingViewsOfView:(UIView *)view
+- (nullable NSArray<UIView *> *)getSiblingViewsOfView:(UIView *)view
 {
   NSObject *parent = [FBSDKViewHierarchy getParent:view];
   if (parent) {
@@ -268,15 +251,13 @@ static NSString *const FIELD_K_DELIMITER = @",";
   }
 }
 
-#pragma mark - Helper Methods
-
 - (void)checkAndAppendData:(NSString *)data
                     forKey:(NSString *)key
 {
   NSString *hashData = [FBSDKUtility SHA256Hash:data];
   __weak typeof(_store) weakStore = _store;
   dispatch_block_t checkAndAppendDataBlock = ^{
-    if (hashData.length == 0 || [weakStore[key] containsObject:hashData]) {
+    if (hashData.length == 0 || !weakStore[key] || [weakStore[key] containsObject:hashData]) {
       return;
     }
 
@@ -287,7 +268,7 @@ static NSString *const FIELD_K_DELIMITER = @",";
     [self.userDataStore setInternalHashData:[weakStore[key] componentsJoinedByString:FIELD_K_DELIMITER]
                                     forType:key];
   };
-#if FBTEST
+#if DEBUG
   checkAndAppendDataBlock();
 #else
   dispatch_async(_serialQueue, checkAndAppendDataBlock);
@@ -367,7 +348,7 @@ static NSString *const FIELD_K_DELIMITER = @",";
   } else if ([key isEqualToString:@"r4"] || [key isEqualToString:@"r5"]) {
     value = [[value componentsSeparatedByCharactersInSet:[NSCharacterSet.letterCharacterSet invertedSet]] componentsJoinedByString:@""];
   } else if ([key isEqualToString:@"r6"]) {
-    value = [FBSDKTypeUtility array:[value componentsSeparatedByString:@"-"] objectAtIndex:0];
+    value = [value componentsSeparatedByString:@"-"].firstObject;
   }
   return value;
 }

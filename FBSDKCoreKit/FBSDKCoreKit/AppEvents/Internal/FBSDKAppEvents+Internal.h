@@ -1,86 +1,69 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import <UIKit/UIApplication.h>
 
-#import <FBSDKCoreKit/FBSDKAppEvents.h>
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 
-#import "FBSDKAppEventName.h"
-#import "FBSDKAppEventsUtility.h"
+#import "FBSDKEventLogging.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-/** Use to log parameters for share tray use */
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterShareTrayActivityName;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterShareTrayResult;
-
-/** Use to log parameters for live streaming*/
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterLiveStreamingPrevStatus;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterLiveStreamingStatus;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterLiveStreamingError;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterLiveStreamingVideoID;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterLiveStreamingMicEnabled;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventParameterLiveStreamingCameraEnabled;
 
 // Internally known event parameter values
 
 FOUNDATION_EXPORT NSString *const FBSDKAppEventsDialogOutcomeValue_Completed;
 FOUNDATION_EXPORT NSString *const FBSDKAppEventsDialogOutcomeValue_Failed;
 
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesHandlerKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesActionKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesEventKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesParamsKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesPixelTrackKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesPixelTrackCustomKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesPixelTrackSingleKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesPixelTrackSingleCustomKey;
-FOUNDATION_EXPORT NSString *const FBSDKAppEventsWKWebViewMessagesPixelIDKey;
-
 @interface FBSDKAppEvents (Internal)
 
-@property (nonatomic) UIApplicationState applicationState;
+// Dependencies
 
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged;
+@property (nullable, nonatomic) Class<FBSDKGateKeeperManaging> gateKeeperManager;
+@property (nullable, nonatomic) id<FBSDKAppEventsConfigurationProviding> appEventsConfigurationProvider;
+@property (nullable, nonatomic) id<FBSDKServerConfigurationProviding> serverConfigurationProvider;
+@property (nullable, nonatomic) id<FBSDKGraphRequestFactory> graphRequestFactory;
+@property (nullable, nonatomic) id<FBSDKFeatureChecking> featureChecker;
+@property (nullable, nonatomic) id<FBSDKDataPersisting> primaryDataStore;
+@property (nullable, nonatomic) Class<FBSDKLogging> logger;
+@property (nullable, nonatomic) id<FBSDKSettings> settings;
+@property (nullable, nonatomic) id<FBSDKPaymentObserving> paymentObserver;
+@property (nullable, nonatomic) id<FBSDKSourceApplicationTracking, FBSDKTimeSpentRecording> timeSpentRecorder;
+@property (nullable, nonatomic) id<FBSDKAppEventsStatePersisting> appEventsStateStore;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> eventDeactivationParameterProcessor;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing, FBSDKEventsProcessing> restrictiveDataFilterParameterProcessor;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing> protectedModeManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> bannedParamsManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> stdParamEnforcementManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> macaRuleMatchingManager;
+@property (nullable, nonatomic) id<FBSDKMACARuleMatching> vvpConfigManager;
+@property (nullable, nonatomic) id<FBSDKEventsProcessing> blocklistEventsManager;
+@property (nullable, nonatomic) id<FBSDKEventsProcessing> redactedEventsManager;
+@property (nullable, nonatomic) id<FBSDKAppEventsParameterProcessing> sensitiveParamsManager;
+@property (nullable, nonatomic) id<FBSDKATEPublisherCreating> atePublisherFactory;
+@property (nullable, nonatomic) id<FBSDKAppEventsStateProviding> appEventsStateProvider;
+@property (nullable, nonatomic) id<FBSDKAdvertiserIDProviding> advertiserIDProvider;
+@property (nullable, nonatomic) id<FBSDKUserDataPersisting> userDataStore;
+@property (nullable, nonatomic) id<FBSDKAppEventDropDetermining, FBSDKAppEventParametersExtracting, FBSDKAppEventsUtility, FBSDKLoggingNotifying> appEventsUtility;
+@property (nullable, nonatomic) id<FBSDKInternalUtility> internalUtility;
+@property (nullable, nonatomic) id<FBSDKTransactionObserving> transactionObserver;
+@property (nullable, nonatomic) id<FBSDKIAPFailedTransactionLoggingCreating> failedTransactionLoggingFactory;
+@property (nullable, nonatomic) id<FBSDKIAPDedupeProcessing> iapDedupeProcessor;
+@property (nullable, nonatomic) id<FBSDKIAPTransactionCaching> iapTransactionCache;
 
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              valueToSum:(double)valueToSum
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged;
-
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              valueToSum:(double)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged;
-
-+ (void)logInternalEvent:(FBSDKAppEventName)eventName
-              valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-      isImplicitlyLogged:(BOOL)isImplicitlyLogged
-             accessToken:(FBSDKAccessToken *)accessToken;
-
-+ (void)logImplicitEvent:(FBSDKAppEventName)eventName
-              valueToSum:(NSNumber *)valueToSum
-              parameters:(nullable NSDictionary<NSString *, id> *)parameters
-             accessToken:(FBSDKAccessToken *)accessToken;
-
-- (void)flushForReason:(FBSDKAppEventsFlushReason)flushReason;
-- (void)startObservingApplicationLifecycleNotifications;
+#if !TARGET_OS_TV
+@property (nullable, nonatomic) id<FBSDKEventProcessing, FBSDKIntegrityParametersProcessorProvider> onDeviceMLModelManager;
+@property (nullable, nonatomic) id<FBSDKMetadataIndexing> metadataIndexer;
+@property (nullable, nonatomic) id<FBSDKAppEventsReporter> skAdNetworkReporter;
+@property (nullable, nonatomic) id<FBSDKAppEventsReporter> skAdNetworkReporterV2;
+@property (nullable, nonatomic) Class<FBSDKCodelessIndexing> codelessIndexer;
+@property (nullable, nonatomic) Class<FBSDKSwizzling> swizzler;
+@property (nullable, nonatomic) Class<FBSDKAEMReporter> aemReporter;
+#endif
 
 @end
 

@@ -1,23 +1,12 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKSwizzler.h"
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <objc/runtime.h>
 
 #define MIN_ARGS 2
@@ -38,7 +27,7 @@
 @property (nonatomic, assign) uint numArgs;
 @property (nonatomic, copy) NSMapTable *blocks;
 
-- (instancetype)initWithBlock:(swizzleBlock)aBlock
+- (instancetype)initWithBlock:(_swizzleBlock)aBlock
                         named:(NSString *)aName
                      forClass:(Class)aClass
                      selector:(SEL)aSelector
@@ -103,7 +92,7 @@ static void fb_swizzledMethod_2(id self, SEL _cmd)
     ((void (*)(id, SEL))swizzle.originalMethod)(self, _cmd);
 
     NSEnumerator *blocks = [swizzle.blocks objectEnumerator];
-    swizzleBlock block;
+    _swizzleBlock block;
     while ((block = [blocks nextObject])) {
       block(self, _cmd);
     }
@@ -118,7 +107,7 @@ static void fb_swizzledMethod_3(id self, SEL _cmd, id arg)
     ((void (*)(id, SEL, id))swizzle.originalMethod)(self, _cmd, arg);
 
     NSEnumerator *blocks = [swizzle.blocks objectEnumerator];
-    swizzleBlock block;
+    _swizzleBlock block;
     while ((block = [blocks nextObject])) {
       block(self, _cmd, arg);
     }
@@ -133,7 +122,7 @@ static void fb_swizzledMethod_4(id self, SEL _cmd, id arg, id arg2)
     ((void (*)(id, SEL, id, id))swizzle.originalMethod)(self, _cmd, arg, arg2);
 
     NSEnumerator *blocks = [swizzle.blocks objectEnumerator];
-    swizzleBlock block;
+    _swizzleBlock block;
     while ((block = [blocks nextObject])) {
       block(self, _cmd, arg, arg2);
     }
@@ -148,7 +137,7 @@ static void fb_swizzledMethod_5(id self, SEL _cmd, id arg, id arg2, id arg3)
     ((void (*)(id, SEL, id, id, id))swizzle.originalMethod)(self, _cmd, arg, arg2, arg3);
 
     NSEnumerator *blocks = [swizzle.blocks objectEnumerator];
-    swizzleBlock block;
+    _swizzleBlock block;
     while ((block = [blocks nextObject])) {
       block(self, _cmd, arg, arg2, arg3);
     }
@@ -163,7 +152,7 @@ static void fb_swizzleMethod_4_io(id self, SEL _cmd, NSInteger arg, id arg2)
     ((void (*)(id, SEL, NSInteger, id))swizzle.originalMethod)(self, _cmd, arg, arg2);
 
     NSEnumerator *blocks = [swizzle.blocks objectEnumerator];
-    swizzleBlock block;
+    _swizzleBlock block;
     while ((block = [blocks nextObject])) {
       block(self, _cmd, arg, arg2);
     }
@@ -210,6 +199,25 @@ static void (*fb_swizzledMethods[MAX_ARGS - MIN_ARGS + 1])() = {fb_swizzledMetho
   }
 }
 
++ (nullable IMP)swizzleMethodsOnSameClass:(Class)targetClass
+                         originalSelector:(SEL)originalSelector
+                         swizzledSelector:(SEL)swizzledSelector
+{
+  if (originalSelector == swizzledSelector) {
+    return NULL;
+  }
+  Method originalMethod = class_getInstanceMethod(targetClass, originalSelector);
+  Method swizzledMethod = class_getInstanceMethod(targetClass, swizzledSelector);
+  if (!originalMethod || !swizzledMethod) {
+    return NULL;
+  }
+  IMP originalImplementation = method_getImplementation(originalMethod);
+  IMP swizzledImplementation = method_getImplementation(swizzledMethod);
+  method_setImplementation(originalMethod, swizzledImplementation);
+  method_setImplementation(swizzledMethod, originalImplementation);
+  return originalImplementation;
+}
+
 + (FBSDKSwizzle *)swizzleForMethod:(Method)aMethod
 {
   return (FBSDKSwizzle *)[swizzles objectForKey:MAPTABLE_ID(aMethod)];
@@ -240,12 +248,12 @@ static void (*fb_swizzledMethods[MAX_ARGS - MIN_ARGS + 1])() = {fb_swizzledMetho
   return isLocal;
 }
 
-+ (void)swizzleSelector:(SEL)aSelector onClass:(Class)aClass withBlock:(swizzleBlock)aBlock named:(NSString *)aName
++ (void)swizzleSelector:(SEL)aSelector onClass:(Class)aClass withBlock:(_swizzleBlock)aBlock named:(NSString *)aName
 {
   [self swizzleSelector:aSelector onClass:aClass withBlock:aBlock named:aName async:YES];
 }
 
-+ (void)swizzleSelector:(SEL)aSelector onClass:(Class)aClass withBlock:(swizzleBlock)aBlock named:(NSString *)aName async:(BOOL)async
++ (void)swizzleSelector:(SEL)aSelector onClass:(Class)aClass withBlock:(_swizzleBlock)aBlock named:(NSString *)aName async:(BOOL)async
 {
   [self swizzleSelectorWithBlock:^{
           @try {
@@ -309,7 +317,7 @@ static void (*fb_swizzledMethods[MAX_ARGS - MIN_ARGS + 1])() = {fb_swizzledMetho
 /*
  Remove the named swizzle from the given class/selector. If aName is nil, remove all
  swizzles for this class/selector
-*/
+ */
 + (void)unswizzleSelector:(SEL)aSelector onClass:(Class)aClass named:(NSString *)aName
 {
   @try {
@@ -363,7 +371,7 @@ static void (*fb_swizzledMethods[MAX_ARGS - MIN_ARGS + 1])() = {fb_swizzledMetho
   }
 }
 
-#if DEBUG && FBTEST
+#if DEBUG
 
 + (void)setSwizzleQueue:(dispatch_queue_t)queue
 {
@@ -387,7 +395,7 @@ static void (*fb_swizzledMethods[MAX_ARGS - MIN_ARGS + 1])() = {fb_swizzledMetho
   return self;
 }
 
-- (instancetype)initWithBlock:(swizzleBlock)aBlock
+- (instancetype)initWithBlock:(_swizzleBlock)aBlock
                         named:(NSString *)aName
                      forClass:(Class)aClass
                      selector:(SEL)aSelector

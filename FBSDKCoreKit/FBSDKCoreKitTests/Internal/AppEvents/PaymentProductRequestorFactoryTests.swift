@@ -1,121 +1,158 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
+@testable import FBSDKCoreKit
+
+import TestTools
 import XCTest
 
-class PaymentProductRequestorFactoryTests: XCTestCase {
+final class PaymentProductRequestorFactoryTests: XCTestCase {
 
-  let settings = TestSettings()
-  let eventLogger = TestEventLogger()
-  let store = UserDefaultsSpy()
-  let loggerFactory = TestLoggerFactory()
-  let graphRequestFactory = TestProductsRequestFactory()
-  let receiptProvider = TestAppStoreReceiptProvider()
-  lazy var factory = PaymentProductRequestorFactory(
-    settings: settings,
-    eventLogger: eventLogger,
-    gateKeeperManager: TestGateKeeperManager.self,
-    store: store,
-    loggerFactory: loggerFactory,
-    productsRequestFactory: graphRequestFactory,
-    receiptProvider: receiptProvider
-  )
+  // swiftlint:disable implicitly_unwrapped_optional
+  var settings: TestSettings!
+  var eventLogger: TestEventLogger!
+  var store: UserDefaultsSpy!
+  var loggerFactory: TestLoggerFactory!
+  var graphRequestFactory: TestProductsRequestFactory!
+  var receiptProvider: TestAppStoreReceiptProvider!
+  var factory: _PaymentProductRequestorFactory!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
 
     TestGateKeeperManager.reset()
+
+    settings = TestSettings()
+    eventLogger = TestEventLogger()
+    store = UserDefaultsSpy()
+    loggerFactory = TestLoggerFactory()
+    graphRequestFactory = TestProductsRequestFactory()
+    receiptProvider = TestAppStoreReceiptProvider()
+    factory = _PaymentProductRequestorFactory()
+
+    _PaymentProductRequestorFactory.setDependencies(
+      .init(
+        settings: settings,
+        eventLogger: eventLogger,
+        gateKeeperManager: TestGateKeeperManager.self,
+        store: store,
+        loggerFactory: loggerFactory,
+        productsRequestFactory: graphRequestFactory,
+        appStoreReceiptProvider: receiptProvider
+      )
+    )
   }
 
-  override class func tearDown() {
+  override func tearDown() {
     super.tearDown()
 
     TestGateKeeperManager.reset()
+    settings = nil
+    eventLogger = nil
+    store = nil
+    loggerFactory = nil
+    graphRequestFactory = nil
+    receiptProvider = nil
+    _PaymentProductRequestorFactory.resetDependencies()
+    factory = nil
   }
 
   // MARK: - Dependencies
 
-  func testCreatingWithDefaults() {
-    factory = PaymentProductRequestorFactory()
+  func testDefaultTypeDependencies() throws {
+    _PaymentProductRequestorFactory.resetDependencies()
+    let dependencies = try _PaymentProductRequestorFactory.getDependencies()
 
-    XCTAssertEqual(
-      factory.settings as? Settings,
+    XCTAssertIdentical(
+      dependencies.settings as AnyObject,
       Settings.shared,
-      "Should use the expected concrete settings by default"
+      .defaultDependency("the shared settings", for: "settings sharing")
     )
-    XCTAssertEqual(
-      ObjectIdentifier(factory.eventLogger),
-      ObjectIdentifier(AppEvents.shared),
-      "Should use the expected concrete event logger by default"
+
+    XCTAssertIdentical(
+      dependencies.eventLogger as AnyObject,
+      AppEvents.shared,
+      .defaultDependency("the shared app events", for: "event logging")
     )
-    XCTAssertTrue(
-      factory.gateKeeperManager is GateKeeperManager.Type,
-      "Should use the expected concrete gate keeper manager by default"
+
+    XCTAssertIdentical(
+      dependencies.gateKeeperManager,
+      _GateKeeperManager.self,
+      .defaultDependency("the gatekeeper manager type", for: "gatekeeping")
     )
-    XCTAssertEqual(
-      factory.store as? UserDefaults,
+
+    XCTAssertIdentical(
+      dependencies.store as AnyObject,
       UserDefaults.standard,
-      "Should use the expected persistent data store by default"
+      .defaultDependency("the standard user defaults", for: "data persisting")
     )
+
     XCTAssertTrue(
-      factory.loggerFactory is LoggerFactory,
-      "Should use the expected concrete logger factory by default"
+      dependencies.loggerFactory is _LoggerFactory,
+      .defaultDependency("a logger factory", for: "logger creating")
     )
+
     XCTAssertTrue(
-      factory.productsRequestFactory is ProductRequestFactory
+      dependencies.productsRequestFactory is _ProductRequestFactory,
+      .defaultDependency("a products request factory", for: "product request creating")
     )
-    XCTAssertTrue(
-      factory.appStoreReceiptProvider is Bundle,
-      "Should use the expected concrete app store receipt provider by default"
+
+    XCTAssertIdentical(
+      dependencies.appStoreReceiptProvider as AnyObject,
+      Bundle(for: ApplicationDelegate.self),
+      .defaultDependency("the framework's bundle", for: "app store receipt providing")
     )
   }
 
-  func testCreatingWithCustomDependencies() {
-    XCTAssertEqual(
-      factory.settings as? TestSettings,
+  func testCustomTypeDependencies() throws {
+    let dependencies = try _PaymentProductRequestorFactory.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.settings as AnyObject,
       settings,
-      "Should use the provided settings"
+      .customDependency(for: "settings sharing")
     )
-    XCTAssertEqual(
-      factory.eventLogger as? TestEventLogger,
+
+    XCTAssertIdentical(
+      dependencies.eventLogger as AnyObject,
       eventLogger,
-      "Should use the provided event logger"
+      .customDependency(for: "event logging")
     )
-    XCTAssertTrue(
-      factory.gateKeeperManager is TestGateKeeperManager.Type,
-      "Should use the provided gate keeper manager"
+
+    XCTAssertIdentical(
+      dependencies.gateKeeperManager,
+      TestGateKeeperManager.self,
+      .customDependency(for: "gatekeeping")
     )
-    XCTAssertEqual(
-      factory.store as? UserDefaultsSpy,
+
+    XCTAssertIdentical(
+      dependencies.store as AnyObject,
       store,
-      "Should use the provided persistent data store"
+      .customDependency(for: "data persisting")
     )
-    XCTAssertTrue(
-      factory.loggerFactory is TestLoggerFactory,
-      "Should use the provided logger factory"
+
+    XCTAssertIdentical(
+      dependencies.loggerFactory as AnyObject,
+      loggerFactory,
+      .customDependency(for: "logger creating")
     )
-    XCTAssertTrue(
-      factory.productsRequestFactory is TestProductsRequestFactory,
-      "Should use the provided product request factory"
+
+    XCTAssertIdentical(
+      dependencies.productsRequestFactory as AnyObject,
+      graphRequestFactory,
+      .customDependency(for: "product request creating")
     )
-    XCTAssertTrue(
-      factory.appStoreReceiptProvider is TestAppStoreReceiptProvider,
-      "Should use the provided app store receipt provider"
+
+    XCTAssertIdentical(
+      dependencies.appStoreReceiptProvider as AnyObject,
+      receiptProvider,
+      .customDependency(for: "app store receipt providing")
     )
   }
 
@@ -159,5 +196,19 @@ class PaymentProductRequestorFactoryTests: XCTestCase {
       requestor.appStoreReceiptProvider is TestAppStoreReceiptProvider,
       "Should create a requestor using the expected app store receipt provider"
     )
+  }
+}
+
+// swiftformat:disable extensionaccesscontrol
+
+// MARK: - Assumptions
+
+fileprivate extension String {
+  static func defaultDependency(_ dependency: String, for type: String) -> String {
+    "The _PaymentProductRequestorFactory type uses \(dependency) as its \(type) dependency by default"
+  }
+
+  static func customDependency(for type: String) -> String {
+    "The _PaymentProductRequestorFactory type uses a custom \(type) dependency when provided"
   }
 }

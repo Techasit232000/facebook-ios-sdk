@@ -1,39 +1,29 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import TestTools
 import XCTest
 
-// swiftlint:disable type_body_length implicitly_unwrapped_optional
-class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollectionViewDelegate {
+final class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollectionViewDelegate {
 
-  let graphRequestFactory = TestGraphRequestFactory()
-  let settings = TestSettings()
-  let eventLogger = TestEventLogger()
-  var eventProcessor: TestOnDeviceMLModelManager! = TestOnDeviceMLModelManager()
-  let serverConfigurationProvider = TestServerConfigurationProvider()
-  let collectionView = TestCollectionView(
-    frame: .zero,
-    collectionViewLayout: UICollectionViewFlowLayout()
-  )
-  let tableView = TestTableView()
-  let button = UIButton()
-  var indexer: SuggestedEventsIndexer!
+  // swiftlint:disable implicitly_unwrapped_optional
+  var graphRequestFactory: TestGraphRequestFactory!
+  var settings: TestSettings!
+  var eventLogger: TestEventLogger!
+  var eventProcessor: TestOnDeviceMLModelManager!
+  var serverConfigurationProvider: TestServerConfigurationProvider!
+  var collectionView: TestCollectionView!
+  var tableView: TestTableView!
+  var button: UIButton!
+  var indexer: _SuggestedEventsIndexer!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   enum Keys {
     static let productionEvents = "production_events"
@@ -61,18 +51,28 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
   override func setUp() {
     super.setUp()
 
-    SuggestedEventsIndexerTests.reset()
+    Self.reset()
 
+    graphRequestFactory = TestGraphRequestFactory()
+    settings = TestSettings()
     settings.appID = name
-
-    indexer = SuggestedEventsIndexer(
+    eventLogger = TestEventLogger()
+    eventProcessor = TestOnDeviceMLModelManager()
+    serverConfigurationProvider = TestServerConfigurationProvider()
+    collectionView = TestCollectionView(
+      frame: .zero,
+      collectionViewLayout: UICollectionViewFlowLayout()
+    )
+    tableView = TestTableView()
+    button = UIButton()
+    indexer = _SuggestedEventsIndexer(
       graphRequestFactory: graphRequestFactory,
       serverConfigurationProvider: serverConfigurationProvider,
       swizzler: TestSwizzler.self,
       settings: settings,
       eventLogger: eventLogger,
       featureExtractor: TestFeatureExtractor.self,
-      eventProcessor: eventProcessor
+      eventProcessor: eventProcessor! // swiftlint:disable:this force_unwrapping
     )
   }
 
@@ -82,10 +82,24 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
     reset()
   }
 
+  override func tearDown() {
+    graphRequestFactory = nil
+    settings = nil
+    eventLogger = nil
+    eventProcessor = nil
+    serverConfigurationProvider = nil
+    collectionView = nil
+    tableView = nil
+    button = nil
+    indexer = nil
+
+    super.tearDown()
+  }
+
   static func reset() {
     TestSwizzler.reset()
     TestFeatureExtractor.reset()
-    SuggestedEventsIndexer.reset()
+    _SuggestedEventsIndexer.reset()
   }
 
   // MARK: - Delegate methods
@@ -94,36 +108,6 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {}
 
   // MARK: - Dependencies
-
-  func testDefaultDependencies() {
-    indexer = SuggestedEventsIndexer()
-
-    XCTAssertTrue(
-      indexer.graphRequestFactory is GraphRequestFactory,
-      "Should have a request provider of the expected default type"
-    )
-    XCTAssertTrue(
-      indexer.serverConfigurationProvider is ServerConfigurationManager,
-      "Should have a server configuration manager of the expected default type"
-    )
-    XCTAssertTrue(
-      indexer.swizzler is Swizzler.Type,
-      "Should have a swizzler of the expected default type"
-    )
-    XCTAssertTrue(
-      indexer.settings is Settings,
-      "Should have a settings of the expected default type"
-    )
-    XCTAssertEqual(
-      ObjectIdentifier(indexer.eventLogger),
-      ObjectIdentifier(AppEvents.shared),
-      "Should have an event logger of the expected default type"
-    )
-    XCTAssertTrue(
-      indexer.eventProcessor is ModelManager,
-      "Should have an event processor of the expected default type"
-    )
-  }
 
   func testCustomDependencies() {
     XCTAssertTrue(
@@ -251,7 +235,7 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
       SwizzleEvidence(
         selector: #selector(setter: UICollectionView.delegate),
         class: UICollectionView.self
-      )
+      ),
     ]
     XCTAssertEqual(
       TestSwizzler.evidence,
@@ -304,7 +288,7 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
 
     let expectedMetadata = [Keys.dense: Values.denseFeature, Keys.buttonText: Values.buttonText]
     guard
-      let parameter = graphRequestFactory.capturedParameters[Keys.metadata] as? String,
+      let parameter = graphRequestFactory.capturedParameters?[Keys.metadata] as? String,
       let data = parameter.data(using: .utf8),
       let decodedMetadata = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: String]
     else {
@@ -317,7 +301,7 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
       "Should use the app identifier from the settings"
     )
     XCTAssertEqual(
-      graphRequestFactory.capturedParameters[Keys.eventName] as? String,
+      graphRequestFactory.capturedParameters?[Keys.eventName] as? String,
       name,
       "Should capture the event name in the parameters"
     )
@@ -331,13 +315,14 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
       "The request should be tokenless"
     )
     XCTAssertEqual(
-      graphRequestFactory.capturedHttpMethod,
+      graphRequestFactory.capturedHTTPMethod,
       .post,
       "Should use the expected http method"
     )
-    XCTAssertTrue(
-      graphRequestFactory.capturedFlags.isEmpty,
-      "Should not create the request with explicit request flags"
+    XCTAssertEqual(
+      graphRequestFactory.capturedFlags,
+      [],
+      "Should not create the request with any request flags"
     )
   }
 
@@ -400,16 +385,17 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
     )
   }
 
-  func testPredictingEventWithoutEventProcessor() {
+  func testPredictingEventWithProcessedEventOther() {
+    eventProcessor.stubbedProcessedEvents = "other"
     indexer.predictEvent(with: UIResponder(), text: Values.buttonText)
 
     XCTAssertNil(
       eventLogger.capturedEventName,
-      "Should not log if there is no event processor to process events"
+      "Should not log if the processed event is 'other'"
     )
     XCTAssertNil(
       graphRequestFactory.capturedGraphPath,
-      "Should not create a request if there is no event processor to process events"
+      "Should not log a suggested event if the processed event is 'other'"
     )
   }
 
@@ -465,10 +451,10 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
       "Should log an opt-in event with the expected event name"
     )
     XCTAssertEqual(
-      eventLogger.capturedParameters as? [String: String],
+      eventLogger.capturedParameters as? [AppEvents.ParameterName: String],
       [
-        Keys.isSuggestedEvent: "1",
-        Keys.eventButtonText: Values.buttonText
+        .init(Keys.isSuggestedEvent): "1",
+        .init(Keys.eventButtonText): Values.buttonText,
       ],
       "Should log an opt-in event with the expected parameters"
     )
@@ -666,7 +652,7 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
     )
     indexer.enable()
     serverConfigurationProvider.capturedCompletionBlock?(
-      ServerConfigurationFixtures.config(withDictionary: setting),
+      ServerConfigurationFixtures.configuration(withDictionary: setting),
       error
     )
   }
@@ -693,7 +679,7 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
   ) {
     let expected = SwizzleEvidence(
       selector: #selector(UITableViewDelegate.tableView(_:didSelectRowAt:)),
-      class: SuggestedEventsIndexerTests.self
+      class: Self.self
     )
     XCTAssertTrue(
       TestSwizzler.evidence.contains(expected),
@@ -709,7 +695,7 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
   ) {
     let expected = SwizzleEvidence(
       selector: #selector(UICollectionViewDelegate.collectionView(_:didSelectItemAt:)),
-      class: SuggestedEventsIndexerTests.self
+      class: Self.self
     )
     XCTAssertTrue(
       TestSwizzler.evidence.contains(expected),
@@ -724,11 +710,11 @@ class SuggestedEventsIndexerTests: XCTestCase, UITableViewDelegate, UICollection
     line: UInt = #line
   ) {
     XCTAssertEqual(
-      button.allTargets.first as? SuggestedEventsIndexer,
+      button.allTargets.first as? _SuggestedEventsIndexer,
       indexer,
       "Indexer should add itself as a target of the button",
       file: file,
       line: line
     )
   }
-} // swiftlint:disable:this file_length
+}

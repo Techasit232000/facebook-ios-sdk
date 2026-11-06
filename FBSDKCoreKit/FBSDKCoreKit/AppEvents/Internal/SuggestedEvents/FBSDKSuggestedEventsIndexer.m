@@ -1,49 +1,30 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
-#import "FBSDKSuggestedEventsIndexer.h"
-
-#import <UIKit/UIKit.h>
-
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 #import <objc/runtime.h>
 #import <sys/sysctl.h>
 #import <sys/utsname.h>
+#import <UIKit/UIKit.h>
 
-#import "FBSDKAppEvents.h"
-#import "FBSDKAppEvents+EventLogging.h"
-#import "FBSDKAppEventsUtility.h"
-#import "FBSDKEventProcessing.h"
-#import "FBSDKFeatureExtracting.h"
-#import "FBSDKFeatureExtractor.h"
-#import "FBSDKGraphRequestFactory.h"
+#import "FBSDKAppEvents+Internal.h"
 #import "FBSDKInternalUtility+Internal.h"
 #import "FBSDKMLMacros.h"
-#import "FBSDKModelManager.h"
 #import "FBSDKModelUtility.h"
-#import "FBSDKServerConfigurationManager+ServerConfigurationProviding.h"
-#import "FBSDKSettings+Internal.h"
-#import "FBSDKSwizzler+Swizzling.h"
-#import "FBSDKSwizzling.h"
+#import "FBSDKServerConfiguration.h"
 #import "FBSDKViewHierarchy.h"
 #import "FBSDKViewHierarchyMacros.h"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 NSString *const OptInEvents = @"production_events";
 NSString *const UnconfirmedEvents = @"eligible_for_prediction_events";
@@ -63,17 +44,6 @@ NSString *const UnconfirmedEvents = @"eligible_for_prediction_events";
 @end
 
 @implementation FBSDKSuggestedEventsIndexer
-
-- (instancetype)init
-{
-  return [self initWithGraphRequestFactory:[FBSDKGraphRequestFactory new]
-               serverConfigurationProvider:FBSDKServerConfigurationManager.shared
-                                  swizzler:FBSDKSwizzler.class
-                                  settings:FBSDKSettings.sharedSettings
-                               eventLogger:FBSDKAppEvents.shared
-                          featureExtractor:FBSDKFeatureExtractor.class
-                            eventProcessor:FBSDKModelManager.shared];
-}
 
 - (instancetype)initWithGraphRequestFactory:(id<FBSDKGraphRequestFactory>)graphRequestFactory
                 serverConfigurationProvider:(id<FBSDKServerConfigurationProviding>)serverConfigurationProvider
@@ -95,18 +65,6 @@ NSString *const UnconfirmedEvents = @"eligible_for_prediction_events";
     _eventProcessor = eventProcessor;
   }
   return self;
-}
-
-// Transitional singleton introduced as a way to change the usage semantics
-// from a type-based interface to an instance-based interface.
-+ (instancetype)shared
-{
-  static dispatch_once_t nonce;
-  static id instance;
-  dispatch_once(&nonce, ^{
-    instance = [self new];
-  });
-  return instance;
 }
 
 - (void)enable
@@ -180,7 +138,7 @@ static dispatch_once_t setupNonce;
 
 - (void)rematchBindings
 {
-  NSArray *windows = UIApplication.sharedApplication.windows;
+  NSArray<__kindof UIWindow *> *windows = UIApplication.sharedApplication.windows;
   for (UIWindow *window in windows) {
     [self matchSubviewsIn:window];
   }
@@ -226,7 +184,7 @@ static dispatch_once_t setupNonce;
     void (^block)(id, SEL, id, id) = ^(id target, SEL command, UITableView *tableView, NSIndexPath *indexPath) {
       UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
       [self predictEventWithUIResponder:cell
-                                   text:[self getTextFromContentView:[cell contentView]]];
+                                   text:[self getTextFromContentView:cell.contentView]];
     };
     [self.swizzler swizzleSelector:@selector(tableView:didSelectRowAtIndexPath:)
                            onClass:[delegate class]
@@ -237,7 +195,7 @@ static dispatch_once_t setupNonce;
     void (^block)(id, SEL, id, id) = ^(id target, SEL command, UICollectionView *collectionView, NSIndexPath *indexPath) {
       UICollectionViewCell *cell = [collectionView cellForItemAtIndexPath:indexPath];
       [self predictEventWithUIResponder:cell
-                                   text:[self getTextFromContentView:[cell contentView]]];
+                                   text:[self getTextFromContentView:cell.contentView]];
     };
     [self.swizzler swizzleSelector:@selector(collectionView:didSelectItemAtIndexPath:)
                            onClass:[delegate class]
@@ -248,7 +206,7 @@ static dispatch_once_t setupNonce;
 
 - (void)predictEventWithUIResponder:(UIResponder *)uiResponder text:(NSString *)text
 {
-  if (text.length > 100 || text.length == 0 || [FBSDKAppEventsUtility isSensitiveUserData:text]) {
+  if (text.length > 100 || text.length == 0 || [FBSDKAppEventsUtility.shared isSensitiveUserData:text]) {
     return;
   }
 
@@ -283,9 +241,9 @@ static dispatch_once_t setupNonce;
 
     __weak typeof(self) weakSelf = self;
     dispatch_block_t predictAndLogBlock = ^{
-      NSMutableDictionary<NSString *, id> *viewTreeCopy = [viewTree mutableCopy];
+      NSMutableDictionary<NSString *, id> *viewTreeCopy = viewTree.mutableCopy;
       float *denseData = [weakSelf.featureExtractor getDenseFeatures:viewTree];
-      NSString *textFeature = [FBSDKModelUtility normalizedText:[FBSDKFeatureExtractor getTextFeature:text withScreenName:viewTreeCopy[@"screenname"]]];
+      NSString *textFeature = [FBSDKModelUtility normalizedText:[weakSelf.featureExtractor getTextFeature:text withScreenName:viewTreeCopy[@"screenname"]]];
       NSString *event = [weakSelf.eventProcessor processSuggestedEvents:textFeature denseData:denseData];
       if (!event || [event isEqualToString:SUGGESTED_EVENT_OTHER]) {
         return;
@@ -301,7 +259,7 @@ static dispatch_once_t setupNonce;
       free(denseData);
     };
 
-  #if FBTEST
+  #if DEBUG
     predictAndLogBlock();
   #else
     fb_dispatch_on_default_thread(predictAndLogBlock);
@@ -309,12 +267,10 @@ static dispatch_once_t setupNonce;
   });
 }
 
-#pragma mark - Helper Methods
-
 - (NSString *)getDenseFeaure:(float *)denseData
 {
   // Get dense feature string
-  NSMutableArray *denseDataArray = [NSMutableArray array];
+  NSMutableArray<NSNumber *> *denseDataArray = [NSMutableArray array];
   for (int i = 0; i < 30; i++) {
     [FBSDKTypeUtility array:denseDataArray addObject:@(denseData[i])];
   }
@@ -324,7 +280,7 @@ static dispatch_once_t setupNonce;
 - (NSString *)getTextFromContentView:(UIView *)contentView
 {
   NSMutableArray<NSString *> *textArray = [NSMutableArray array];
-  for (UIView *subView in [contentView subviews]) {
+  for (UIView *subView in contentView.subviews) {
     NSString *label = [FBSDKViewHierarchy getText:subView];
     if (label.length > 0) {
       [FBSDKTypeUtility array:textArray addObject:label];
@@ -353,14 +309,19 @@ static dispatch_once_t setupNonce;
                                      @"event_name" : event,
                                      @"metadata" : metadata,
                                    }
-                                                                                 HTTPMethod:FBSDKHTTPMethodPOST];
+                                                                                tokenString:nil
+                                                                                 HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                      flags:FBSDKGraphRequestFlagNone
+                                                          useAlternativeDefaultDomainPrefix:NO];
   [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {}];
   return;
 }
 
+#pragma clang diagnostic pop
+
 #pragma mark - Testability
 
-#if FBTEST
+#if DEBUG
 
 + (void)reset
 {

@@ -1,69 +1,131 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#if BUCK
-import FacebookCore
-#endif
+@testable import FBSDKLoginKit
 
 import TestTools
 import XCTest
 
-// swiftlint:disable:next type_body_length
-class DeviceLoginManagerTests: XCTestCase {
+final class DeviceLoginManagerTests: XCTestCase {
 
   let fakeAppID = "123"
   let fakeClientToken = "abc"
   let permissions = ["email", "public_profile"]
-  let redirectURL = URL(string: "https://www.example.com")
-  let poller = TestDevicePoller()
-  private let delegate = TestDeviceLoginManagerDelegate()
-  lazy var factory = TestGraphRequestFactory()
-  lazy var manager = DeviceLoginManager(
-    permissions: permissions,
-    enableSmartLogin: false,
-    graphRequestFactory: factory,
-    devicePoller: poller
-  )
+  let redirectURL = URL(string: "https://www.example.com")!
+
+  // swiftlint:disable implicitly_unwrapped_optional
+  var poller: TestDevicePoller!
+  var delegate: TestDeviceLoginManagerDelegate!
+  var graphRequestFactory: TestGraphRequestFactory!
+  var settings: TestSettings!
+  var internalUtility: TestInternalUtility!
+  var errorFactory: TestErrorFactory!
+  var manager: DeviceLoginManager!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
 
-    // This is a temporary hack to account for the fact that types need to be
-    // initialized before being used, but doing that on the shared ApplicationDelegate
-    // will create a host of 'real' types that will do things like start timers
-    // and make network requests, and generally pollute the test environment.
-    // This is mimicking the behavior of calling `didFinishLaunching` by configuring
-    // the types that are needed for these test cases.
-    InternalUtility.shared.isConfigured = true
-    Settings.shared.isConfigured = true
-
-    Settings.shared.appID = fakeAppID
-    Settings.shared.clientToken = fakeClientToken
+    poller = TestDevicePoller()
+    delegate = TestDeviceLoginManagerDelegate()
+    graphRequestFactory = TestGraphRequestFactory()
+    settings = TestSettings()
+    internalUtility = TestInternalUtility()
+    errorFactory = TestErrorFactory()
+    manager = DeviceLoginManager(
+      permissions: permissions,
+      enableSmartLogin: false
+    )
+    manager.setDependencies(
+      .init(
+        devicePoller: poller,
+        errorFactory: errorFactory,
+        graphRequestFactory: graphRequestFactory,
+        internalUtility: internalUtility,
+        settings: settings
+      )
+    )
 
     manager.redirectURL = redirectURL
     manager.delegate = delegate
-    manager.setCodeInfo(sampleCodeInfo())
+    manager.codeInfo = sampleCodeInfo()
   }
 
   override func tearDown() {
-    Settings.reset()
+    poller = nil
+    delegate = nil
+    graphRequestFactory = nil
+    settings = nil
+    internalUtility = nil
+    errorFactory = nil
+    manager = nil
 
     super.tearDown()
+  }
+
+  // MARK: Dependencies
+
+  func testCreatingWithDependencies() throws {
+    let dependencies = try manager.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.graphRequestFactory,
+      graphRequestFactory,
+      "A device login manager uses a provided graph request factory"
+    )
+    XCTAssertIdentical(
+      dependencies.devicePoller as AnyObject,
+      poller,
+      "A device login manager uses a provided device poller"
+    )
+    XCTAssertIdentical(
+      dependencies.settings,
+      settings,
+      "A device login manager uses a provided settings"
+    )
+    XCTAssertIdentical(
+      dependencies.internalUtility,
+      internalUtility,
+      "A device login manager uses a provided internal utility"
+    )
+    XCTAssertIdentical(
+      dependencies.errorFactory,
+      errorFactory,
+      "A device login manager uses a provided error factory"
+    )
+  }
+
+  func testDefaultDependencies() throws {
+    manager.resetDependencies()
+    let dependencies = try manager.getDependencies()
+
+    XCTAssertTrue(
+      dependencies.graphRequestFactory is GraphRequestFactory,
+      "A device login manager uses a concrete graph request factory by default"
+    )
+    XCTAssertTrue(
+      dependencies.devicePoller is DevicePoller,
+      "A device login manager uses a concrete device poller by default"
+    )
+    XCTAssertIdentical(
+      dependencies.settings,
+      Settings.shared,
+      "A device login manager uses the shared settings by default"
+    )
+    XCTAssertIdentical(
+      dependencies.internalUtility,
+      InternalUtility.shared,
+      "A device login manager uses the shared internal utility by default"
+    )
+    XCTAssertTrue(
+      dependencies.errorFactory is _ErrorFactory,
+      "A device login manager uses a concrete error factory by default"
+    )
   }
 
   // MARK: Start
@@ -71,7 +133,7 @@ class DeviceLoginManagerTests: XCTestCase {
   func testStartGraphRequestCreation() throws {
     manager.start()
 
-    let request = try XCTUnwrap(factory.capturedRequests.first)
+    let request = try XCTUnwrap(graphRequestFactory.capturedRequests.first)
 
     XCTAssertEqual(
       request.graphPath,
@@ -85,7 +147,7 @@ class DeviceLoginManagerTests: XCTestCase {
     )
     XCTAssertEqual(
       request.parameters["redirect_uri"] as? String,
-      redirectURL?.absoluteString,
+      redirectURL.absoluteString,
       "Should create a graph request with the expected redirect URL"
     )
     XCTAssertNotNil(
@@ -97,7 +159,7 @@ class DeviceLoginManagerTests: XCTestCase {
   func testStartGraphRequestCompleteWithError() throws {
     manager.start()
 
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, nil, NSError(domain: "foo", code: 0, userInfo: nil))
 
     XCTAssertEqual(delegate.capturedLoginManager, manager)
@@ -107,7 +169,7 @@ class DeviceLoginManagerTests: XCTestCase {
   func testStartGraphRequestCompleteWithEmptyResponse() throws {
     manager.start()
 
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, [], nil)
 
     XCTAssertEqual(delegate.capturedLoginManager, manager)
@@ -122,10 +184,10 @@ class DeviceLoginManagerTests: XCTestCase {
       "user_code": expectedCodeInfo.loginCode,
       "verification_uri": expectedCodeInfo.verificationURL.absoluteString,
       "expires_in": String(expectedCodeInfo.expirationDate.timeIntervalSinceNow),
-      "interval": expectedCodeInfo.pollingInterval
+      "interval": expectedCodeInfo.pollingInterval,
     ] as [String: Any]
 
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, result, nil)
 
     XCTAssertEqual(delegate.capturedLoginManager, manager)
@@ -148,12 +210,14 @@ class DeviceLoginManagerTests: XCTestCase {
   // MARK: _schedulePoll
 
   func testStatusGraphRequestCreation() throws {
+    let tokenString = "sample-token"
+    internalUtility.stubbedRequiredClientAccessToken = tokenString
     let codeInfo = sampleCodeInfo()
-    manager._schedulePoll(codeInfo.pollingInterval)
+    manager.schedulePoll(interval: codeInfo.pollingInterval)
 
     XCTAssertEqual(poller.capturedInterval, codeInfo.pollingInterval)
 
-    let request = try XCTUnwrap(factory.capturedRequests.first)
+    let request = try XCTUnwrap(graphRequestFactory.capturedRequests.first)
     XCTAssertEqual(
       request.graphPath,
       "device/login_status",
@@ -162,63 +226,63 @@ class DeviceLoginManagerTests: XCTestCase {
     let parameters = request.parameters
     XCTAssertEqual(
       parameters["code"] as? String,
-      self.sampleCodeInfo().identifier,
+      sampleCodeInfo().identifier,
       "Should create a graph request with the expected code"
     )
     XCTAssertEqual(
       request.tokenString,
-      self.fakeAppID + "|" + self.fakeClientToken
+      tokenString
     )
   }
 
   func testStatusGraphRequestCompleteWithError() throws {
-    manager._schedulePoll(sampleCodeInfo().pollingInterval)
+    manager.schedulePoll(interval: sampleCodeInfo().pollingInterval)
 
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, nil, NSError(domain: "foo", code: 0, userInfo: nil))
-    XCTAssertEqual(self.delegate.capturedLoginManager, manager)
-    XCTAssertNotNil(self.delegate.capturedError)
+    XCTAssertEqual(delegate.capturedLoginManager, manager)
+    XCTAssertNotNil(delegate.capturedError)
   }
 
   func testStatusGraphRequestCompleteWithNoToken() throws {
-    manager._schedulePoll(sampleCodeInfo().pollingInterval)
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    manager.schedulePoll(interval: sampleCodeInfo().pollingInterval)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, [], nil)
-    XCTAssertEqual(self.delegate.capturedLoginManager, self.manager)
-    XCTAssertNotNil(self.delegate.capturedError)
+    XCTAssertEqual(delegate.capturedLoginManager, manager)
+    XCTAssertNotNil(delegate.capturedError)
   }
 
   func testStatusGraphRequestCompleteWithAccessToken() throws {
-    manager._schedulePoll(sampleCodeInfo().pollingInterval)
+    manager.schedulePoll(interval: sampleCodeInfo().pollingInterval)
 
     let result: [String: String] = [
       "access_token": SampleAccessTokens.validToken.tokenString,
       "expires_in": String(SampleAccessTokens.validToken.expirationDate.timeIntervalSinceNow),
       "data_access_expiration_time": String(
         SampleAccessTokens.validToken.dataAccessExpirationDate.timeIntervalSince1970
-      )
+      ),
     ]
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, result, nil)
 
-    let request = try XCTUnwrap(factory.capturedRequests.last)
+    let request = try XCTUnwrap(graphRequestFactory.capturedRequests.last)
     XCTAssertEqual(request.tokenString, SampleAccessTokens.validToken.tokenString)
     XCTAssertEqual(request.graphPath, "me")
   }
 
   func testSchedulePollAfterCancel() throws {
-    manager._schedulePoll(sampleCodeInfo().pollingInterval)
+    manager.schedulePoll(interval: sampleCodeInfo().pollingInterval)
 
-    self.manager.cancel()
+    manager.cancel()
     let result: [String: String] = [
       "access_token": SampleAccessTokens.validToken.tokenString,
     ]
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, result, nil)
 
-    XCTAssertNil(self.delegate.capturedError)
+    XCTAssertNil(delegate.capturedError)
     XCTAssertEqual(
-      factory.capturedRequests.count,
+      graphRequestFactory.capturedRequests.count,
       1,
       "Should not be making another graph request to fetch permissions"
     )
@@ -227,13 +291,13 @@ class DeviceLoginManagerTests: XCTestCase {
   // MARK: _notifyToken
 
   func testNotifyTokenGraphRequestCreation() throws {
-    manager._notifyToken(
-      SampleAccessTokens.validToken.tokenString,
-      withExpirationDate: SampleAccessTokens.validToken.expirationDate,
-      withDataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
+    manager.notifyDelegate(
+      token: SampleAccessTokens.validToken.tokenString,
+      expirationDate: SampleAccessTokens.validToken.expirationDate,
+      dataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
     )
 
-    let request = try XCTUnwrap(factory.capturedRequests.last)
+    let request = try XCTUnwrap(graphRequestFactory.capturedRequests.last)
     XCTAssertEqual(
       request.graphPath,
       "me",
@@ -253,12 +317,12 @@ class DeviceLoginManagerTests: XCTestCase {
   }
 
   func testNotifyTokenGraphRequestCompleteWithError() throws {
-    manager._notifyToken(
-      SampleAccessTokens.validToken.tokenString,
-      withExpirationDate: SampleAccessTokens.validToken.expirationDate,
-      withDataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
+    manager.notifyDelegate(
+      token: SampleAccessTokens.validToken.tokenString,
+      expirationDate: SampleAccessTokens.validToken.expirationDate,
+      dataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
     )
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(nil, nil, NSError(domain: "foo", code: 0, userInfo: nil))
 
     XCTAssertEqual(delegate.capturedLoginManager, manager)
@@ -270,12 +334,12 @@ class DeviceLoginManagerTests: XCTestCase {
       "permissions": ["data": []],
     ]
 
-    manager._notifyToken(
-      SampleAccessTokens.validToken.tokenString,
-      withExpirationDate: SampleAccessTokens.validToken.expirationDate,
-      withDataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
+    manager.notifyDelegate(
+      token: SampleAccessTokens.validToken.tokenString,
+      expirationDate: SampleAccessTokens.validToken.expirationDate,
+      dataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
     )
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(
       nil,
       result,
@@ -287,16 +351,16 @@ class DeviceLoginManagerTests: XCTestCase {
   }
 
   func testNotifyTokenGraphRequestCompleteWithNoPermissions() throws {
-    manager._notifyToken(
-      SampleAccessTokens.validToken.tokenString,
-      withExpirationDate: SampleAccessTokens.validToken.expirationDate,
-      withDataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
+    manager.notifyDelegate(
+      token: SampleAccessTokens.validToken.tokenString,
+      expirationDate: SampleAccessTokens.validToken.expirationDate,
+      dataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
     )
 
     let result: [String: Any] = [
-      "id": "123"
+      "id": "123",
     ]
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(
       nil,
       result,
@@ -308,39 +372,29 @@ class DeviceLoginManagerTests: XCTestCase {
   }
 
   func testNotifyTokenGraphRequestCompleteWithPermissionsAndUserID() throws {
-    manager._notifyToken(
-      SampleAccessTokens.validToken.tokenString,
-      withExpirationDate: SampleAccessTokens.validToken.expirationDate,
-      withDataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
+    manager.notifyDelegate(
+      token: SampleAccessTokens.validToken.tokenString,
+      expirationDate: SampleAccessTokens.validToken.expirationDate,
+      dataAccessExpirationDate: SampleAccessTokens.validToken.dataAccessExpirationDate
     )
 
-    let result: [String: Any] = [
+    let response: [String: Any] = [
       "id": "123",
       "permissions": [
-        "data": [
-          [
-            "permission": "public_profile",
-            "status": "granted"
-          ],
-          [
-            "permission": "email",
-            "status": "granted"
-          ],
-          [
-            "permission": "user_friends",
-            "status": "declined"
-          ],
-          [
-            "permission": "user_birthday",
-            "status": "expired"
-          ]
-        ]
-      ]
+        "marker": true,
+      ],
     ]
-    let completion = try XCTUnwrap(factory.capturedRequests.first?.capturedCompletionHandler)
+    let granted = ["public_profile", "email"]
+    let declined = ["user_friends"]
+    let expired = ["user_birthday"]
+    internalUtility.stubbedGrantedPermissions = granted
+    internalUtility.stubbedDeclinedPermissions = declined
+    internalUtility.stubbedExpiredPermissions = expired
+
+    let completion = try XCTUnwrap(graphRequestFactory.capturedRequests.first?.capturedCompletionHandler)
     completion(
       nil,
-      result,
+      response,
       nil
     )
 
@@ -353,21 +407,35 @@ class DeviceLoginManagerTests: XCTestCase {
       XCTFail("Should receive an AccessToken within login result")
       return
     }
+    let marker = try XCTUnwrap(internalUtility.capturedExtractPermissionsResponse?["marker"] as? Bool)
+    XCTAssertTrue(
+      marker,
+      "The response's permissions should be passed to the internal utility"
+    )
     XCTAssertEqual(token.userID, "123")
-    XCTAssertEqual(token.permissions, ["public_profile", "email"])
-    XCTAssertEqual(token.declinedPermissions, ["user_friends"])
-    XCTAssertEqual(token.expiredPermissions, ["user_birthday"])
+    XCTAssertEqual(
+      Set(token.permissions.map(\.name)),
+      Set(granted)
+    )
+    XCTAssertEqual(
+      Set(token.declinedPermissions.map(\.name)),
+      Set(declined)
+    )
+    XCTAssertEqual(
+      Set(token.expiredPermissions.map(\.name)),
+      Set(expired)
+    )
     XCTAssertEqual(token, AccessToken.current)
   }
 
   func testNotifyTokenWithNoTokenString() {
-    manager._notifyToken(
-      nil,
-      withExpirationDate: nil,
-      withDataAccessExpirationDate: nil
+    manager.notifyDelegate(
+      token: nil,
+      expirationDate: nil,
+      dataAccessExpirationDate: nil
     )
 
-    XCTAssertEqual(factory.capturedRequests.count, 0)
+    XCTAssertEqual(graphRequestFactory.capturedRequests.count, 0)
     guard let loginResult = delegate.capturedResult else {
       XCTFail("Should receive an login result")
       return
@@ -379,7 +447,7 @@ class DeviceLoginManagerTests: XCTestCase {
   // MARK: _processError
 
   func testProcessErrorAuthorizationPending() throws {
-    manager._processError(
+    manager.processError(
       NSError(
         domain: "foo",
         code: 0,
@@ -387,7 +455,7 @@ class DeviceLoginManagerTests: XCTestCase {
       )
     )
 
-    let request = try XCTUnwrap(factory.capturedRequests.first)
+    let request = try XCTUnwrap(graphRequestFactory.capturedRequests.first)
     XCTAssertEqual(
       request.graphPath,
       "device/login_status",
@@ -395,8 +463,8 @@ class DeviceLoginManagerTests: XCTestCase {
     )
   }
 
-  func testProcessErrorCodeExpired() {
-    manager._processError(
+  func testProcessErrorCodeExpired() throws {
+    manager.processError(
       NSError(
         domain: "foo",
         code: 0,
@@ -405,12 +473,12 @@ class DeviceLoginManagerTests: XCTestCase {
     )
 
     XCTAssertEqual(delegate.capturedLoginManager, manager)
-    XCTAssertNil(factory.capturedRequests.first)
-    self.assertCancelResult()
+    XCTAssertNil(graphRequestFactory.capturedRequests.first)
+    try assertCancelResult()
   }
 
-  func testProcessErrorAuthorizationDeclined() {
-    manager._processError(
+  func testProcessErrorAuthorizationDeclined() throws {
+    manager.processError(
       NSError(
         domain: "foo",
         code: 0,
@@ -419,12 +487,12 @@ class DeviceLoginManagerTests: XCTestCase {
     )
 
     XCTAssertEqual(delegate.capturedLoginManager, manager)
-    XCTAssertNil(factory.capturedRequests.first)
-    self.assertCancelResult()
+    XCTAssertNil(graphRequestFactory.capturedRequests.first)
+    try assertCancelResult()
   }
 
   func testProcessErrorExcessivePolling() throws {
-    manager._processError(
+    manager.processError(
       NSError(
         domain: "foo",
         code: 0,
@@ -432,7 +500,7 @@ class DeviceLoginManagerTests: XCTestCase {
       )
     )
 
-    let request = try XCTUnwrap(factory.capturedRequests.first)
+    let request = try XCTUnwrap(graphRequestFactory.capturedRequests.first)
     XCTAssertEqual(
       request.graphPath,
       "device/login_status",
@@ -446,18 +514,21 @@ class DeviceLoginManagerTests: XCTestCase {
     DeviceLoginCodeInfo(
       identifier: "identifier",
       loginCode: "loginCode",
-      verificationURL: URL(string: "https://www.facebook.com")!, // swiftlint:disable:this force_unwrapping
+      verificationURL: URL(string: "https://www.facebook.com")!,
       expirationDate: Date.distantFuture,
       pollingInterval: 10
     )
   }
 
-  func assertCancelResult() {
-    guard let loginResult = delegate.capturedResult else {
-      XCTFail("Should receive an login result")
-      return
-    }
-    XCTAssert(loginResult.isCancelled)
-    XCTAssertNil(loginResult.accessToken)
+  func assertCancelResult(file: StaticString = #file, line: UInt = #line) throws {
+    let loginResult = try XCTUnwrap(
+      delegate.capturedResult,
+      "Should receive an login result",
+      file: file,
+      line: line
+    )
+
+    XCTAssert(loginResult.isCancelled, file: file, line: line)
+    XCTAssertNil(loginResult.accessToken, file: file, line: line)
   }
-} // swiftlint:disable:this file_length
+}

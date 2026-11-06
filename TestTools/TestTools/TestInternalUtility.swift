@@ -1,55 +1,151 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import FBSDKCoreKit
+import FBSDKCoreKit_Basics
+import Foundation
 
+// swiftformat:disable indent
 @objcMembers
-public class TestInternalUtility: NSObject, AppAvailabilityChecker, URLHosting, AppURLSchemeProviding {
-  public var stubbedScheme = "No stub app url scheme provided"
+public final class TestInternalUtility: NSObject,
+                                        AppAvailabilityChecker,
+                                        URLHosting,
+                                        AppURLSchemeProviding,
+                                        InternalUtilityProtocol {
+  // swiftformat:enable indent
   public var validateURLSchemesCalled = false
-
   public var isFacebookAppInstalled = false
-
   public var isMessengerAppInstalled = false
+  public var stubbedURL: URL?
+  public var stubbedAppURL: URL?
+  public var stubbedFacebookURL: URL?
+  public var capturedURLScheme: String?
+  public var capturedURLHost: String?
+  public var capturedURLPath: String?
+  public var capturedURLQueryParameters: [String: String]?
+  public var capturedAppURLHost: String?
+  public var capturedAppURLPath: String?
+  public var capturedAppURLQueryParameters: [String: String]?
+  public var capturedFacebookURLHostPrefix: String?
+  public var capturedFacebookURLPath: String?
+  public var capturedFacebookURLQueryParameters: [String: String]?
+  public var capturedExtensibleParameters: NSMutableDictionary?
+  public var isUnity = false
+  public var appURLScheme = ""
+
+  public func url(
+    withScheme scheme: String,
+    host: String,
+    path: String,
+    queryParameters: [String: String]
+  ) throws -> URL {
+    capturedURLScheme = scheme
+    capturedURLHost = host
+    capturedURLPath = path
+    capturedURLQueryParameters = queryParameters
+
+    guard let url = stubbedURL else { throw SampleError() }
+    return url
+  }
 
   public func facebookURL(
-    withHostPrefix hostPrefix: String,
+    hostPrefix: String,
     path: String,
-    queryParameters: [String: Any],
-    error errorRef: NSErrorPointer
-  ) -> URL {
-    URL(string: "facebook.com")! // swiftlint:disable:this force_unwrapping
+    queryParameters: [String: String]
+  ) throws -> URL {
+    capturedFacebookURLHostPrefix = hostPrefix
+    capturedFacebookURLPath = path
+    capturedFacebookURLQueryParameters = queryParameters
+
+    guard let url = stubbedFacebookURL else { throw SampleError() }
+    return url
   }
 
   public func appURL(
     withHost host: String,
     path: String,
-    queryParameters: [String: Any],
-    error errorRef: NSErrorPointer
-  ) -> URL {
-    URL(string: "example.com")! // swiftlint:disable:this force_unwrapping
+    queryParameters: [String: String]
+  ) throws -> URL {
+    capturedAppURLHost = host
+    capturedAppURLPath = path
+    capturedAppURLQueryParameters = queryParameters
+
+    guard let url = stubbedAppURL else { throw SampleError() }
+    return url
   }
 
-  public func appURLScheme() -> String {
-    stubbedScheme
+  public func registerTransientObject(_ object: Any) {}
+
+  public var unregisterTransientObjectObject: Any?
+
+  public func unregisterTransientObject(_ object: Any) {
+    unregisterTransientObjectObject = object
   }
+
+  public func checkRegisteredCanOpenURLScheme(_ urlScheme: String) {}
 
   public func validateURLSchemes() {
     validateURLSchemesCalled = true
   }
+
+  public func extendDictionary(withDataProcessingOptions parameters: NSMutableDictionary) {
+    capturedExtensibleParameters = parameters
+  }
+
+  public func hexadecimalString(from data: Data) -> String? {
+    nil
+  }
+
+  public func validateAppID() {}
+
+  public var stubbedRequiredClientAccessToken: String?
+
+  public func validateRequiredClientAccessToken() -> String {
+    stubbedRequiredClientAccessToken ?? ""
+  }
+
+  public var capturedExtractPermissionsResponse: [String: Any]?
+  public var stubbedGrantedPermissions: [String]?
+  public var stubbedDeclinedPermissions: [String]?
+  public var stubbedExpiredPermissions: [String]?
+
+  public func extractPermissions(
+    fromResponse responseObject: [String: Any],
+    grantedPermissions: NSMutableSet,
+    declinedPermissions: NSMutableSet,
+    expiredPermissions: NSMutableSet
+  ) {
+    capturedExtractPermissionsResponse = responseObject
+
+    if let granted = stubbedGrantedPermissions {
+      grantedPermissions.addObjects(from: granted)
+    }
+
+    if let declined = stubbedDeclinedPermissions {
+      declinedPermissions.addObjects(from: declined)
+    }
+
+    if let expired = stubbedExpiredPermissions {
+      expiredPermissions.addObjects(from: expired)
+    }
+  }
+
+  public func validateFacebookReservedURLSchemes() {}
+
+  public func validateDomainConfiguration() {}
+
+  public var stubbedFBURLParameters: [String: Any]?
+
+  public func parameters(fromFBURL url: URL) -> [String: Any] {
+    stubbedFBURLParameters ?? [:]
+  }
+
+  public var bundleForStrings: Bundle { .main }
+
+  public func topMostViewController() -> UIViewController? { nil }
 }

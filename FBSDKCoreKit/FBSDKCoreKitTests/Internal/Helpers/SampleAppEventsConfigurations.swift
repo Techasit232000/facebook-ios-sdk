@@ -1,39 +1,31 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import Foundation
 
 @objcMembers
-class SampleAppEventsConfigurations: NSObject {
+final class SampleAppEventsConfigurations: NSObject {
 
-  static let `default` = AppEventsConfiguration.default()
+  static let `default` = _AppEventsConfiguration.default()
 
-  static var valid: AppEventsConfiguration {
+  static var valid: _AppEventsConfiguration {
     create(
       defaultATEStatus: AdvertisingTrackingStatus.unspecified,
       advertiserIDCollectionEnabled: true,
-      eventCollectionEnabled: false
+      eventCollectionEnabled: false,
+      iapProdDedupConfiguration: self.default.iapProdDedupConfiguration,
+      iapTestDedupConfiguration: self.default.iapTestDedupConfiguration
     )
   }
 
   static func create(
     defaultATEStatus status: AdvertisingTrackingStatus
-  ) -> AppEventsConfiguration {
+  ) -> _AppEventsConfiguration {
     create(
       defaultATEStatus: status,
       advertiserIDCollectionEnabled: self.default.advertiserIDCollectionEnabled,
@@ -43,7 +35,7 @@ class SampleAppEventsConfigurations: NSObject {
 
   static func create(
     advertiserIDCollectionEnabled: Bool
-  ) -> AppEventsConfiguration {
+  ) -> _AppEventsConfiguration {
     create(
       defaultATEStatus: self.default.defaultATEStatus,
       advertiserIDCollectionEnabled: advertiserIDCollectionEnabled,
@@ -53,7 +45,7 @@ class SampleAppEventsConfigurations: NSObject {
 
   static func create(
     eventCollectionEnabled: Bool
-  ) -> AppEventsConfiguration {
+  ) -> _AppEventsConfiguration {
     create(
       defaultATEStatus: self.default.defaultATEStatus,
       advertiserIDCollectionEnabled: self.default.advertiserIDCollectionEnabled,
@@ -62,14 +54,66 @@ class SampleAppEventsConfigurations: NSObject {
   }
 
   static func create(
+    iapObservationTime: UInt64
+  ) -> _AppEventsConfiguration {
+    create(
+      defaultATEStatus: self.default.defaultATEStatus,
+      advertiserIDCollectionEnabled: self.default.advertiserIDCollectionEnabled,
+      eventCollectionEnabled: self.default.eventCollectionEnabled,
+      iapObservationTime: iapObservationTime
+    )
+  }
+
+  static func create(
+    iapManualAndAutoLogDedupWindow: UInt64
+  ) -> _AppEventsConfiguration {
+    create(
+      defaultATEStatus: self.default.defaultATEStatus,
+      advertiserIDCollectionEnabled: self.default.advertiserIDCollectionEnabled,
+      eventCollectionEnabled: self.default.eventCollectionEnabled,
+      iapManualAndAutoLogDedupWindow: iapManualAndAutoLogDedupWindow
+    )
+  }
+
+  static func create(
+    iapProdDedupConfiguration: [String: [String]]
+  ) -> _AppEventsConfiguration {
+    create(
+      defaultATEStatus: self.default.defaultATEStatus,
+      advertiserIDCollectionEnabled: self.default.advertiserIDCollectionEnabled,
+      eventCollectionEnabled: self.default.eventCollectionEnabled,
+      iapProdDedupConfiguration: iapProdDedupConfiguration
+    )
+  }
+
+  static func create(
+    iapTestDedupConfiguration: [String: [String]]
+  ) -> _AppEventsConfiguration {
+    create(
+      defaultATEStatus: self.default.defaultATEStatus,
+      advertiserIDCollectionEnabled: self.default.advertiserIDCollectionEnabled,
+      eventCollectionEnabled: self.default.eventCollectionEnabled,
+      iapTestDedupConfiguration: iapTestDedupConfiguration
+    )
+  }
+
+  static func create(
     defaultATEStatus: AdvertisingTrackingStatus,
     advertiserIDCollectionEnabled: Bool,
-    eventCollectionEnabled: Bool
-  ) -> AppEventsConfiguration {
-    AppEventsConfiguration(
+    eventCollectionEnabled: Bool,
+    iapObservationTime: UInt64 = 3600000000000,
+    iapManualAndAutoLogDedupWindow: UInt64 = 60000,
+    iapProdDedupConfiguration: [String: [String]] = [String: [String]](),
+    iapTestDedupConfiguration: [String: [String]] = [String: [String]]()
+  ) -> _AppEventsConfiguration {
+    _AppEventsConfiguration(
       defaultATEStatus: defaultATEStatus,
       advertiserIDCollectionEnabled: advertiserIDCollectionEnabled,
-      eventCollectionEnabled: eventCollectionEnabled
+      eventCollectionEnabled: eventCollectionEnabled,
+      iapObservationTime: iapObservationTime,
+      iapManualAndAutoLogDedupWindow: iapManualAndAutoLogDedupWindow,
+      iapProdDedupConfiguration: iapProdDedupConfiguration,
+      iapTestDedupConfiguration: iapTestDedupConfiguration
     )
   }
 }

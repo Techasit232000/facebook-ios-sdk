@@ -1,81 +1,94 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
 final class AuthenticationTokenClaimsTests: XCTestCase {
+
   let appID = "4321"
   let jti = "some_jti"
   let nonce = "some_nonce"
   let facebookURL = "https://www.facebook.com/"
-  let currentTime = Date().timeIntervalSince1970
-  let settings = TestSettings()
+  var currentTime = Date().timeIntervalSince1970
 
-  lazy var claims = makeClaims()
-  lazy var claimsValues = getClaimsValues(from: claims)
+  // swiftlint:disable implicitly_unwrapped_optional
+  var settings: SettingsProtocol!
+  var claims: AuthenticationTokenClaims!
+  var claimsValues: [String: Any]!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
 
-    // Calling the configuration method here ensures that subsequent calls in
-    // the production code will be ignored and our test doubles from below
-    // will be used
-    AuthenticationTokenClaims.configureClassDependencies()
-
+    settings = TestSettings()
     settings.appID = appID
-    AuthenticationTokenClaims.configure(settings: settings)
+    AuthenticationTokenClaims.setDependencies(.init(settings: settings))
+
+    claims = makeClaims()
+    claimsValues = getClaimsValues(from: claims)
   }
 
   override func tearDown() {
-    AuthenticationTokenClaims.resetClassDependencies()
+    AuthenticationTokenClaims.resetDependencies()
+
+    settings = nil
+    claims = nil
+    claimsValues = nil
 
     super.tearDown()
   }
 
   // MARK: - Class Dependencies
 
-  func testDefaultClassDependencies() {
-    AuthenticationTokenClaims.resetClassDependencies()
-    AuthenticationTokenClaims.configureClassDependencies()
+  func testDefaultClassDependencies() throws {
+    AuthenticationTokenClaims.resetDependencies()
 
-    XCTAssertTrue(
-      AuthenticationTokenClaims.settings === Settings.shared,
+    let dependencies = try AuthenticationTokenClaims.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.settings,
+      Settings.shared,
       "The class should use the shared settings by default"
+    )
+  }
+
+  func testCustomClassDependencies() throws {
+    let dependencies = try AuthenticationTokenClaims.getDependencies()
+
+    XCTAssertIdentical(
+      dependencies.settings,
+      settings,
+      "Should be able to configure the settings dependency on the type"
     )
   }
 
   // MARK: - Decoding Claims
 
   func testDecodeValidClaims() throws {
-    let data = try TypeUtility.data(withJSONObject: claimsValues, options: [])
+    let values = try XCTUnwrap(claimsValues)
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
     let encoded = base64URLEncodeData(data)
-    let decoded = AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce)
-    XCTAssertEqual(decoded, claims)
+    let decoded = try XCTUnwrap(
+      AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce)
+    )
+
+    XCTAssertTrue(claimsAreEqual(decoded, claims))
   }
 
   func testDecodeValidClaimsWithLegacyIssuer() throws {
-    var claims = claimsValues
+    var claims = try XCTUnwrap(claimsValues)
     claims["iss"] = "https://facebook.com"
     let data = try TypeUtility.data(withJSONObject: claims, options: [])
     let encoded = base64URLEncodeData(data)
-    let decoded = AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce)
+    let decoded = AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce)
     XCTAssertNotNil(decoded)
   }
 
@@ -83,7 +96,7 @@ final class AuthenticationTokenClaimsTests: XCTestCase {
     let data = "invalid_claims".data(using: .utf8)! // swiftlint:disable:this force_unwrapping
     let encoded = base64URLEncodeData(data)
 
-    XCTAssertNil(AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce))
+    XCTAssertNil(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
   }
 
   func testDecodeClaimsWithInvalidRequiredClaims() throws {
@@ -118,7 +131,7 @@ final class AuthenticationTokenClaimsTests: XCTestCase {
     let keys = [
       "name", "given_name", "middle_name", "family_name", "email",
       "picture", "user_friends", "user_birthday", "user_age_range",
-      "user_hometown", "user_location", "user_gender", "user_link"
+      "user_hometown", "user_location", "user_gender", "user_link",
     ]
 
     try keys.forEach { key in
@@ -142,13 +155,13 @@ final class AuthenticationTokenClaimsTests: XCTestCase {
   }
 
   func testDecodeClaimsWithEmptyFriendsList() throws {
-    var values = claimsValues
+    var values = try XCTUnwrap(claimsValues)
     values["user_friends"] = [String]()
 
     let data = try TypeUtility.data(withJSONObject: values, options: [])
     let encoded = base64URLEncodeData(data)
 
-    let decoded = try XCTUnwrap(AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce))
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
     let friends = try XCTUnwrap(decoded.userFriends)
     XCTAssertTrue(friends.isEmpty)
   }
@@ -157,18 +170,86 @@ final class AuthenticationTokenClaimsTests: XCTestCase {
     let data = try TypeUtility.data(withJSONObject: [String: Any?](), options: [])
     let encoded = base64URLEncodeData(data)
 
-    XCTAssertNil(AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce))
+    XCTAssertNil(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
   }
 
-  func testDecodeRandomClaims() throws {
-    try XCTSkipIf(true) // see T98167812
+  // MARK: - cnf.jkt (DPoP binding)
 
-    try (0..<100).forEach { _ in
-      let randomized = Fuzzer.randomize(json: claimsValues)
+  func testDecodeClaimsWithCnfJktParsesCorrectly() throws {
+    var values = try XCTUnwrap(claimsValues)
+    values["cnf"] = ["jkt": "abc123_thumbprint"]
+
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
+    let encoded = base64URLEncodeData(data)
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
+
+    XCTAssertEqual(decoded.cnfJkt, "abc123_thumbprint")
+  }
+
+  func testDecodeClaimsWithoutCnfReturnsNilThumbprint() throws {
+    let values = try XCTUnwrap(claimsValues)
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
+    let encoded = base64URLEncodeData(data)
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
+
+    XCTAssertNil(decoded.cnfJkt)
+  }
+
+  func testDecodeClaimsWithEmptyCnfJktReturnsNil() throws {
+    var values = try XCTUnwrap(claimsValues)
+    values["cnf"] = ["jkt": ""]
+
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
+    let encoded = base64URLEncodeData(data)
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
+
+    XCTAssertNil(decoded.cnfJkt)
+  }
+
+  func testDecodeClaimsWithCnfButNoJktReturnsNil() throws {
+    var values = try XCTUnwrap(claimsValues)
+    values["cnf"] = ["other_key": "value"]
+
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
+    let encoded = base64URLEncodeData(data)
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
+
+    XCTAssertNil(decoded.cnfJkt)
+  }
+
+  func testDecodeClaimsWithMalformedCnfReturnsNil() throws {
+    var values = try XCTUnwrap(claimsValues)
+    values["cnf"] = "not_a_dict"
+
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
+    let encoded = base64URLEncodeData(data)
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
+
+    XCTAssertNil(decoded.cnfJkt)
+  }
+
+  func testDecodeClaimsWithNonStringCnfJktReturnsNil() throws {
+    var values = try XCTUnwrap(claimsValues)
+    values["cnf"] = ["jkt": 12345]
+
+    let data = try TypeUtility.data(withJSONObject: values, options: [])
+    let encoded = base64URLEncodeData(data)
+    let decoded = try XCTUnwrap(AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce))
+
+    XCTAssertNil(decoded.cnfJkt)
+  }
+
+  // swiftlint:disable:next identifier_name
+  func _testDecodeRandomClaims() throws {
+    try XCTSkipIf(true) // see T98167812
+    let values = try XCTUnwrap(claimsValues)
+
+    try (0 ..< 100).forEach { _ in
+      let randomized = Fuzzer.randomize(json: values)
       let data = try TypeUtility.data(withJSONObject: randomized, options: [])
       let encoded = base64URLEncodeData(data)
 
-      _ = AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce)
+      _ = AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce)
     }
   }
 }
@@ -196,15 +277,15 @@ extension AuthenticationTokenClaimsTests {
       userAgeRange: ["min": 21],
       userHometown: [
         "id": "112724962075996",
-        "name": "Martinez, California"
+        "name": "Martinez, California",
       ],
       userLocation: [
         "id": "110843418940484",
-        "name": "Seattle, Washington"
+        "name": "Seattle, Washington",
       ],
       userGender: "male",
       userLink: "facebook.com"
-    )! // swiftlint:disable:this force_unwrapping
+    )
   }
 
   func getClaimsValues(from claims: AuthenticationTokenClaims) -> [String: Any] {
@@ -215,7 +296,7 @@ extension AuthenticationTokenClaimsTests {
       "exp": claims.exp,
       "iat": claims.iat,
       "jti": claims.jti,
-      "sub": claims.sub
+      "sub": claims.sub,
     ]
 
     let optionalValues: [String: Any?] = [
@@ -231,7 +312,7 @@ extension AuthenticationTokenClaimsTests {
       "user_hometown": claims.userHometown,
       "user_location": claims.userLocation,
       "user_gender": claims.userGender,
-      "user_link": claims.userLink
+      "user_link": claims.userLink,
     ]
 
     for (key, potentialValue) in optionalValues {
@@ -244,7 +325,7 @@ extension AuthenticationTokenClaimsTests {
   }
 
   func base64URLEncodeData(_ data: Data) -> String {
-    Base64.encode(data)! // swiftlint:disable:this force_unwrapping
+    data.base64EncodedString()
       .replacingOccurrences(of: "+", with: "-")
       .replacingOccurrences(of: "/", with: "_")
       .replacingOccurrences(of: "=", with: "")
@@ -257,7 +338,7 @@ extension AuthenticationTokenClaimsTests {
     file: StaticString = #filePath,
     line: UInt = #line
   ) throws {
-    var invalidClaims = claimsValues
+    var invalidClaims = try XCTUnwrap(claimsValues)
 
     if let value = potentialValue {
       invalidClaims[key] = value
@@ -269,7 +350,7 @@ extension AuthenticationTokenClaimsTests {
     let encoded = base64URLEncodeData(data)
 
     XCTAssertNil(
-      AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce),
+      AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce),
       "Decoding of authentication token claims should fail when \(reason)",
       file: file,
       line: line
@@ -282,7 +363,7 @@ extension AuthenticationTokenClaimsTests {
     file: StaticString = #filePath,
     line: UInt = #line
   ) throws {
-    var invalidClaims = claimsValues
+    var invalidClaims = try XCTUnwrap(claimsValues)
 
     if let value = potentialValue {
       invalidClaims[key] = value
@@ -294,12 +375,35 @@ extension AuthenticationTokenClaimsTests {
     let encoded = base64URLEncodeData(data)
 
     let claims = try XCTUnwrap(
-      AuthenticationTokenClaims(fromEncodedString: encoded, nonce: nonce),
+      AuthenticationTokenClaims(encodedClaims: encoded, nonce: nonce),
       file: file,
       line: line
     )
 
     let claimsValues = getClaimsValues(from: claims)
     XCTAssertNil(claimsValues[key], file: file, line: line)
+  }
+
+  private func claimsAreEqual(_ claims: AuthenticationTokenClaims, _ otherClaims: AuthenticationTokenClaims) -> Bool {
+    claims.jti == otherClaims.jti
+      && claims.iss == otherClaims.iss
+      && claims.aud == otherClaims.aud
+      && claims.nonce == otherClaims.nonce
+      && claims.exp == otherClaims.exp
+      && claims.iat == otherClaims.iat
+      && claims.sub == otherClaims.sub
+      && claims.name == otherClaims.name
+      && claims.givenName == otherClaims.givenName
+      && claims.middleName == otherClaims.middleName
+      && claims.familyName == otherClaims.familyName
+      && claims.email == otherClaims.email
+      && claims.picture == otherClaims.picture
+      && claims.userFriends == otherClaims.userFriends
+      && claims.userBirthday == otherClaims.userBirthday
+      && claims.userAgeRange == otherClaims.userAgeRange
+      && claims.userHometown == otherClaims.userHometown
+      && claims.userLocation == otherClaims.userLocation
+      && claims.userGender == otherClaims.userGender
+      && claims.userLink == otherClaims.userLink
   }
 }

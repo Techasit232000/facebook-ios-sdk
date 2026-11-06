@@ -1,31 +1,24 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import Foundation
 import TestTools
 
 @objcMembers
-class RawAppEventsConfigurationResponseFixtures: NSObject {
+final class RawAppEventsConfigurationResponseFixtures: NSObject {
 
   enum Keys {
     static let defaultATEStatus = "default_ate_status"
     static let advertiserIDCollectionEnabled = "advertiser_id_collection_enabled"
     static let eventCollectionEnabled = "event_collection_enabled"
+    static let iapObservationTime = "ios_iap_observation_time"
+    static let iapManualAndAutoLogDedupWindow = "iap_manual_log_dedup_window_millis"
+    static let iapManualAndAutologDedupKeys = "iap_manual_and_auto_log_dedup_keys"
     static let topLevel = "app_events_config"
   }
 
@@ -34,8 +27,94 @@ class RawAppEventsConfigurationResponseFixtures: NSObject {
       Keys.topLevel: [
         Keys.defaultATEStatus: 1,
         Keys.advertiserIDCollectionEnabled: false,
-        Keys.eventCollectionEnabled: true
-      ]
+        Keys.eventCollectionEnabled: true,
+        Keys.iapObservationTime: 3600000000000,
+        Keys.iapManualAndAutoLogDedupWindow: 60000,
+        Keys.iapManualAndAutologDedupKeys: [
+          [
+            "key": "prod_keys",
+            "value": [
+              [
+                "key": "fb_content_id",
+                "value": [
+                  [
+                    "key": 0,
+                    "value": "fb_content_id",
+                  ],
+                  [
+                    "key": 1,
+                    "value": "fb_product_item_id",
+                  ],
+                ],
+              ],
+              [
+                "key": "fb_transaction_id",
+                "value": [
+                  [
+                    "key": 0,
+                    "value": "fb_transaction_id",
+                  ],
+                  [
+                    "key": 1,
+                    "value": "fb_order_id",
+                  ],
+                ],
+              ],
+            ],
+          ],
+          [
+            "key": "test_keys",
+            "value": [
+              [
+                "key": "test_key_1",
+                "value": [
+                  [
+                    "key": 0,
+                    "value": "test_value_0",
+                  ],
+                  [
+                    "key": 1,
+                    "value": "test_value_1",
+                  ],
+                ],
+              ],
+            ],
+          ],
+        ],
+      ],
+    ]
+  }
+
+  static var emptyDedupConfig: [String: Any] {
+    [
+      Keys.topLevel: [
+        Keys.defaultATEStatus: 1,
+        Keys.advertiserIDCollectionEnabled: false,
+        Keys.eventCollectionEnabled: true,
+        Keys.iapObservationTime: 3600000000000,
+        Keys.iapManualAndAutoLogDedupWindow: 60000,
+        Keys.iapManualAndAutologDedupKeys: [],
+      ],
+    ]
+  }
+
+  static var emptyProdAndTestDedupConfig: [String: Any] {
+    [
+      Keys.topLevel: [
+        Keys.defaultATEStatus: 1,
+        Keys.advertiserIDCollectionEnabled: false,
+        Keys.eventCollectionEnabled: true,
+        Keys.iapObservationTime: 3600000000000,
+        Keys.iapManualAndAutoLogDedupWindow: 60000,
+        Keys.iapManualAndAutologDedupKeys: [
+          [
+            "key": "prod_keys",
+          ],
+          [
+            "key": "test_keys",
+          ],
+        ],
+      ],
     ]
   }
 
@@ -44,6 +123,9 @@ class RawAppEventsConfigurationResponseFixtures: NSObject {
       Keys.defaultATEStatus: 1,
       Keys.advertiserIDCollectionEnabled: 1,
       Keys.eventCollectionEnabled: 1,
+      Keys.iapObservationTime: 3600000000000,
+      Keys.iapManualAndAutoLogDedupWindow: 60000,
+      Keys.iapManualAndAutologDedupKeys: [],
     ]
   }
 
@@ -52,8 +134,11 @@ class RawAppEventsConfigurationResponseFixtures: NSObject {
       Keys.topLevel: [
         Keys.defaultATEStatus: "foo",
         Keys.advertiserIDCollectionEnabled: "bar",
-        Keys.eventCollectionEnabled: "baz"
-      ]
+        Keys.eventCollectionEnabled: "baz",
+        Keys.iapObservationTime: "fuzz",
+        Keys.iapManualAndAutoLogDedupWindow: "bizz",
+        Keys.iapManualAndAutologDedupKeys: "buzz",
+      ],
     ]
   }
 
@@ -64,7 +149,10 @@ class RawAppEventsConfigurationResponseFixtures: NSObject {
         Keys.defaultATEStatus: Fuzzer.random,
         Keys.advertiserIDCollectionEnabled: Fuzzer.random,
         Keys.eventCollectionEnabled: Fuzzer.random,
-      ]
+        Keys.iapObservationTime: Fuzzer.random,
+        Keys.iapManualAndAutoLogDedupWindow: Fuzzer.random,
+        Keys.iapManualAndAutologDedupKeys: Fuzzer.random,
+      ],
     ]
     return Fuzzer.randomize(json: response)
   }

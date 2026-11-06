@@ -1,36 +1,91 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
 #import "FBSDKAuthenticationStatusUtility.h"
 
-#import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 
-#import "FBSDKAccessToken.h"
-#import "FBSDKAuthenticationToken.h"
 #import "FBSDKInternalUtility+Internal.h"
 #import "FBSDKLogger.h"
-#import "FBSDKProfile.h"
 
 static NSString *const FBSDKOIDCStatusPath = @"/platform/oidc/status";
 
 @implementation FBSDKAuthenticationStatusUtility
+
+static Class<FBSDKProfileProviding> _profileSetter;
+static id<FBSDKURLSessionProviding> _sessionDataTaskProvider;
+static Class<FBSDKAccessTokenProviding> _accessTokenWallet;
+static Class<FBSDKAuthenticationTokenProviding> _authenticationTokenWallet;
+
++ (nullable id<FBSDKURLSessionProviding>)sessionDataTaskProvider
+{
+  return _sessionDataTaskProvider;
+}
+
++ (void)setSessionDataTaskProvider:(id<FBSDKURLSessionProviding>)sessionDataTaskProvider
+{
+  _sessionDataTaskProvider = sessionDataTaskProvider;
+}
+
++ (nullable Class<FBSDKProfileProviding>)profileSetter
+{
+  return _profileSetter;
+}
+
++ (void)setProfileSetter:(nullable Class<FBSDKProfileProviding>)profileSetter
+{
+  _profileSetter = profileSetter;
+}
+
++ (nullable Class<FBSDKAccessTokenProviding>)accessTokenWallet
+{
+  return _accessTokenWallet;
+}
+
++ (void)setAccessTokenWallet:(nullable Class<FBSDKAccessTokenProviding>)accessTokenWallet
+{
+  _accessTokenWallet = accessTokenWallet;
+}
+
++ (nullable Class<FBSDKAuthenticationTokenProviding>)authenticationTokenWallet
+{
+  return _authenticationTokenWallet;
+}
+
++ (void)setAuthenticationTokenWallet:(nullable Class<FBSDKAuthenticationTokenProviding>)authenticationTokenWallet
+{
+  _authenticationTokenWallet = authenticationTokenWallet;
+}
+
++ (void)configureWithProfileSetter:(Class<FBSDKProfileProviding>)profileSetter
+           sessionDataTaskProvider:(id<FBSDKURLSessionProviding>)sessionDataTaskProvider
+                 accessTokenWallet:(Class<FBSDKAccessTokenProviding>)accessTokenWallet
+         authenticationTokenWallet:(Class<FBSDKAuthenticationTokenProviding>)authenticationTokenWallet;
+{
+  self.profileSetter = profileSetter;
+  self.sessionDataTaskProvider = sessionDataTaskProvider;
+  self.accessTokenWallet = accessTokenWallet;
+  self.authenticationTokenWallet = authenticationTokenWallet;
+}
+
+#if DEBUG
+
++ (void)resetClassDependencies
+{
+  self.profileSetter = nil;
+  self.sessionDataTaskProvider = nil;
+  self.accessTokenWallet = nil;
+  self.authenticationTokenWallet = nil;
+}
+
+#endif
 
 + (void)checkAuthenticationStatus
 {
@@ -41,17 +96,17 @@ static NSString *const FBSDKOIDCStatusPath = @"/platform/oidc/status";
 
   NSURLRequest *request = [NSURLRequest requestWithURL:requestURL];
   if (request) {
-    [[NSURLSession.sharedSession dataTaskWithRequest:request
-                                   completionHandler:^(NSData *_Nullable data, NSURLResponse *_Nullable response, NSError *_Nullable error) {
-                                     if (!error) {
-                                       fb_dispatch_on_main_thread(^{
-                                         [self _handleResponse:response];
-                                       });
-                                     } else {
-                                       [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorNetworkRequests
-                                                              logEntry:error.localizedDescription];
-                                     }
-                                   }] resume];
+    [[self.sessionDataTaskProvider fb_dataTaskWithRequest:request
+                                        completionHandler:^(NSData *_Nullable data, NSURLResponse *_Nullable response, NSError *_Nullable error) {
+                                       if (!error) {
+                                         fb_dispatch_on_main_thread(^{
+                                           [self _handleResponse:response];
+                                         });
+                                       } else {
+                                         [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorNetworkRequests
+                                                                logEntry:error.localizedDescription];
+                                       }
+                                     }] fb_resume];
   }
 }
 
@@ -64,7 +119,7 @@ static NSString *const FBSDKOIDCStatusPath = @"/platform/oidc/status";
   }
 
   if ([httpResponse respondsToSelector:@selector(allHeaderFields)]) {
-    NSDictionary<NSString *, id> *header = [httpResponse allHeaderFields];
+    NSDictionary<NSString *, id> *header = httpResponse.allHeaderFields;
     NSString *status = [FBSDKTypeUtility dictionary:header objectForKey:@"fb-s" ofType:NSString.class];
     if ([status isEqualToString:@"not_authorized"]) {
       [self _invalidateCurrentSession];
@@ -72,9 +127,9 @@ static NSString *const FBSDKOIDCStatusPath = @"/platform/oidc/status";
   }
 }
 
-+ (NSURL *)_requestURL
++ (nullable NSURL *)_requestURL
 {
-  FBSDKAuthenticationToken *token = FBSDKAuthenticationToken.currentAuthenticationToken;
+  FBSDKAuthenticationToken *token = [self.authenticationTokenWallet currentAuthenticationToken];
 
   if (!token.tokenString) {
     return nil;
@@ -92,9 +147,9 @@ static NSString *const FBSDKOIDCStatusPath = @"/platform/oidc/status";
 
 + (void)_invalidateCurrentSession
 {
-  FBSDKAccessToken.currentAccessToken = nil;
-  FBSDKAuthenticationToken.currentAuthenticationToken = nil;
-  FBSDKProfile.currentProfile = nil;
+  [self.accessTokenWallet setCurrentAccessToken:nil];
+  [self.authenticationTokenWallet setCurrentAuthenticationToken:nil];
+  [self.profileSetter setCurrentProfile:nil];
 }
 
 @end

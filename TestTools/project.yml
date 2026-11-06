@@ -8,24 +8,25 @@ include:
 projectReferences:
   FBSDKCoreKit:
     path: ../FBSDKCoreKit/FBSDKCoreKit.xcodeproj
+  FBAEMKit:
+    path: ../FBAEMKit/FBAEMKit.xcodeproj
 
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.facebook.TestTools
-    SWIFT_OBJC_BRIDGING_HEADER: TestTools/TestTools-Bridging-Header.h
 
 targets:
   TestTools:
+    templates:
+      - SwiftlintBuildPhaseTemplate
     type: framework
     platform: iOS
     sources:
       - path: TestTools
-        headerVisibility: public
         excludes:
           - Info.plist
     dependencies:
       - target: FBSDKCoreKit/FBSDKCoreKit-Dynamic
         link: false
-    preBuildScripts:
-      - name: Run Swiftlint
-        script: ../scripts/build_phase_swiftlint.sh
+      - target: FBAEMKit/FBAEMKit-Dynamic
+        link: false

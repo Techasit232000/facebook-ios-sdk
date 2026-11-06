@@ -40,33 +40,12 @@
 			remoteGlobalIDString = 7345B321FE1F43D8E26A6EBD;
 			remoteInfo = "FBSDKGamingServicesKit-Static";
 		};
-		0A0F947B26EE7DFC009EF9E1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F4F2B70D24ABD43C0019369E /* FBSDKGamingServicesKit.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = DE7E8A0B13BD3060A8E34DDC;
-			remoteInfo = FBSDKGamingServicesKitTests;
-		};
-		0A0F947D26EE7DFC009EF9E1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F4F2B70D24ABD43C0019369E /* FBSDKGamingServicesKit.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 485125AF3AE3193C3812E211;
-			remoteInfo = "FacebookGamingServices-Dynamic";
-		};
-		0A0F947F26EE7DFC009EF9E1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F4F2B70D24ABD43C0019369E /* FBSDKGamingServicesKit.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 7E52E00C9A5233E3F2685AC7;
-			remoteInfo = "FacebookGamingServices-Static";
-		};
 		0A0F948126EE7DFC009EF9E1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F4F2B70D24ABD43C0019369E /* FBSDKGamingServicesKit.xcodeproj */;
 			proxyType = 2;
 			remoteGlobalIDString = 4449A7DE6BAB955FAC4802C5;
-			remoteInfo = FacebookGamingServicesTests;
+			remoteInfo = FBSDKGamingServicesKitTests;
 		};
 		0A0F948A26EE7DFC009EF9E1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -332,10 +311,7 @@
 			children = (
 				F4F2B71624ABD43C0019369E /* FBSDKGamingServicesKit.framework */,
 				0A0F947A26EE7DFC009EF9E1 /* FBSDKGamingServicesKit-Static.framework */,
-				0A0F947C26EE7DFC009EF9E1 /* FBSDKGamingServicesKitTests.xctest */,
-				0A0F947E26EE7DFC009EF9E1 /* FacebookGamingServices.framework */,
-				0A0F948026EE7DFC009EF9E1 /* FacebookGamingServices-Static.framework */,
-				0A0F948226EE7DFC009EF9E1 /* FacebookGamingServicesTests.xctest */,
+				0A0F948226EE7DFC009EF9E1 /* FBSDKGamingServicesKitTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -463,32 +439,10 @@
 			remoteRef = 0A0F947926EE7DFC009EF9E1 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
-		0A0F947C26EE7DFC009EF9E1 /* FBSDKGamingServicesKitTests.xctest */ = {
+		0A0F948226EE7DFC009EF9E1 /* FBSDKGamingServicesKitTests.xctest */ = {
 			isa = PBXReferenceProxy;
 			fileType = wrapper.cfbundle;
 			path = FBSDKGamingServicesKitTests.xctest;
-			remoteRef = 0A0F947B26EE7DFC009EF9E1 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-		0A0F947E26EE7DFC009EF9E1 /* FacebookGamingServices.framework */ = {
-			isa = PBXReferenceProxy;
-			fileType = wrapper.framework;
-			path = FacebookGamingServices.framework;
-			remoteRef = 0A0F947D26EE7DFC009EF9E1 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-		0A0F948026EE7DFC009EF9E1 /* FacebookGamingServices-Static.framework */ = {
-			isa = PBXReferenceProxy;
-			fileType = wrapper.framework;
-			name = "FacebookGamingServices-Static.framework";
-			path = FacebookGamingServices.framework;
-			remoteRef = 0A0F947F26EE7DFC009EF9E1 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-		0A0F948226EE7DFC009EF9E1 /* FacebookGamingServicesTests.xctest */ = {
-			isa = PBXReferenceProxy;
-			fileType = wrapper.cfbundle;
-			path = FacebookGamingServicesTests.xctest;
 			remoteRef = 0A0F948126EE7DFC009EF9E1 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
@@ -708,7 +662,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -762,7 +716,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -779,7 +733,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = V9WTTPBFK9;
 				INFOPLIST_FILE = TestXcodeIntegration/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -798,7 +752,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = V9WTTPBFK9;
 				INFOPLIST_FILE = TestXcodeIntegration/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

@@ -1,71 +1,124 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
+@testable import FBSDKCoreKit
+
+import TestTools
 import UIKit
 import XCTest
 
-class BridgeAPIRequestTests: XCTestCase {
+final class BridgeAPIRequestTests: XCTestCase {
+
+  // swiftlint:disable implicitly_unwrapped_optional
+  var internalURLOpener: TestInternalURLOpener!
+  var internalUtility: TestInternalUtility!
+  var settings: TestSettings!
+  // swiftlint:enable implicitly_unwrapped_optional
+
+  override func setUp() {
+    super.setUp()
+
+    internalURLOpener = TestInternalURLOpener(canOpenURL: true)
+    internalUtility = TestInternalUtility()
+    settings = TestSettings()
+
+    _BridgeAPIRequest.configure(
+      internalURLOpener: internalURLOpener,
+      internalUtility: internalUtility,
+      settings: settings
+    )
+  }
 
   override func tearDown() {
-    BridgeAPIRequest.resetClassDependencies()
+    _BridgeAPIRequest.resetClassDependencies()
+
+    internalURLOpener = nil
+    internalUtility = nil
+    settings = nil
+
     super.tearDown()
   }
 
-  func testClassDependencies() {
-    _ = BridgeAPIRequest(
-      protocolType: .native,
-      scheme: "http",
-      methodName: nil,
-      methodVersion: nil,
-      parameters: nil,
-      userInfo: nil
-    )
-
-    let testInternalURLOpener = {
-      XCTAssertTrue(
-        BridgeAPIRequest.internalURLOpener === UIApplication.shared,
-        "BridgeAPIRequest should use the shared application for its default internal URL opener dependency"
-      )
-    }
-
-    #if BUCK
-    testInternalURLOpener()
-    #else
-    XCTExpectFailure(
-      "The following test should fail since the tests do not have a valid application singleton",
-      failingBlock: testInternalURLOpener
-    )
-    #endif
-
-    XCTAssertTrue(
-      BridgeAPIRequest.internalUtility === InternalUtility.shared,
-      "BridgeAPIRequest should use the shared utility for its default internal utility dependency"
-    )
-    XCTAssertTrue(
-      BridgeAPIRequest.settings === Settings.shared,
-      "BridgeAPIRequest should use the shared settings for its default settings dependency"
+  private func makeRequest(
+    protocolType: FBSDKBridgeAPIProtocolType = .web,
+    scheme: URLSchemeEnum = .https
+  ) -> _BridgeAPIRequest? {
+    _BridgeAPIRequest(
+      protocolType: protocolType,
+      scheme: scheme,
+      methodName: "methodName",
+      parameters: ["parameter": "value"],
+      userInfo: ["key": "value"]
     )
   }
 
-  func testDefaultProtocolConformance() {
+  func testDefaultClassDependencies() throws {
+    _BridgeAPIRequest.resetClassDependencies()
+    _ = makeRequest()
+
+    XCTAssertNil(_BridgeAPIRequest.settings, "Should not have a default settings")
+    XCTAssertNil(_BridgeAPIRequest.internalUtility, "Should not have a default internal utility")
+    XCTAssertNil(_BridgeAPIRequest.internalURLOpener, "Should not have a default internal url opener")
+  }
+
+  func testRequestProtocolConformance() {
     XCTAssertTrue(
-      (BridgeAPIRequest.self as Any) is BridgeAPIRequestProtocol.Type,
-      "BridgeAPIRequest should conform to the expected protocol"
+      (_BridgeAPIRequest.self as Any) is BridgeAPIRequestProtocol.Type,
+      "_BridgeAPIRequest should conform to the expected protocol"
     )
+  }
+
+  func testOpenableURL() {
+    XCTAssertNotNil(
+      makeRequest(protocolType: FBSDKBridgeAPIProtocolType.native, scheme: URLSchemeEnum.facebookAPI),
+      "BridgeAPIRequests should only be created for openable URLs"
+    )
+  }
+
+  func testProperties() throws {
+    let request: _BridgeAPIRequest = try XCTUnwrap(makeRequest())
+
+    XCTAssertEqual(
+      request.protocolType,
+      FBSDKBridgeAPIProtocolType.web,
+      "A request should use the provided protocol type"
+    )
+    XCTAssertTrue(
+      request.protocol is BridgeAPIProtocolWebV1,
+      "A request should use a protocol based on its protocol type"
+    )
+    XCTAssertEqual(request.scheme, URLSchemeEnum.https, "A request should use the provided scheme")
+    XCTAssertEqual(request.methodName, "methodName", "A request should use the provided method name")
+
+    let parametersMessage = "A request should use the provided parameters"
+    let parameters = try XCTUnwrap(request.parameters, parametersMessage)
+    XCTAssertEqual(parameters.count, 1, parametersMessage)
+    XCTAssertEqual(parameters["parameter"] as? String, "value", parametersMessage)
+
+    let userInfoMessage = "A request should use the provided user info"
+    let userInfo = try XCTUnwrap(request.userInfo, userInfoMessage)
+    XCTAssertEqual(userInfo.count, 1, userInfoMessage)
+    XCTAssertEqual(userInfo["key"] as? String, "value", userInfoMessage)
+  }
+
+  func testUnopenableRequestURL() throws {
+    let request: _BridgeAPIRequest = try XCTUnwrap(makeRequest())
+    internalURLOpener.canOpenURL = false
+
+    XCTAssertThrowsError(
+      try request.requestURL(),
+      "Unopenable request URLs should not be provided"
+    )
+  }
+
+  func testCopying() throws {
+    let request: _BridgeAPIRequest = try XCTUnwrap(makeRequest())
+    let copy = try XCTUnwrap(request.copy() as AnyObject)
+    XCTAssertIdentical(request, copy, "Instances should be provided as copies of themselves")
   }
 }

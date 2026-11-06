@@ -1,59 +1,35 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "FBSDKPaymentProductRequestor.h"
 
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
+#import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 #import <StoreKit/StoreKit.h>
 
-#import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
-
 #import "FBSDKAppEventName+Internal.h"
-#import "FBSDKAppEventParameterName.h"
-#import "FBSDKAppEventsFlushReason.h"
-#import "FBSDKAppStoreReceiptProviding.h"
-#import "FBSDKDataPersisting.h"
+#import "FBSDKAppEventParameterName+Internal.h"
+#import <FBSDKCoreKit/FBSDKAppEventsFlushReason.h>
 #import "FBSDKEventLogging.h"
-#import "FBSDKGateKeeperManaging.h"
-#import "FBSDKLoggingCreating.h"
 #import "FBSDKProductsRequestProtocols.h"
-#import "FBSDKSettingsProtocol.h"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 static NSString *const FBSDKPaymentObserverOriginalTransactionKey = @"com.facebook.appevents.PaymentObserver.originalTransaction";
 static NSString *const FBSDKPaymentObserverDelimiter = @",";
-
-static NSString *const FBSDKAppEventParameterImplicitlyLoggedPurchase = @"_implicitlyLogged";
-static NSString *const FBSDKAppEventParameterNameInAppPurchaseType = @"fb_iap_product_type";
-static NSString *const FBSDKAppEventParameterNameProductTitle = @"fb_content_title";
-static NSString *const FBSDKAppEventParameterNameOriginalTransactionID = @"fb_original_transaction_id";
-static NSString *const FBSDKAppEventParameterNameTransactionID = @"fb_transaction_id";
-static NSString *const FBSDKAppEventParameterNameTransactionDate = @"fb_transaction_date";
-static NSString *const FBSDKAppEventParameterNameSubscriptionPeriod = @"fb_iap_subs_period";
-static NSString *const FBSDKAppEventParameterNameIsStartTrial = @"fb_iap_is_start_trial";
-static NSString *const FBSDKAppEventParameterNameHasFreeTrial = @"fb_iap_has_free_trial";
-static NSString *const FBSDKAppEventParameterNameTrialPeriod = @"fb_iap_trial_period";
-static NSString *const FBSDKAppEventParameterNameTrialPrice = @"fb_iap_trial_price";
 
 static NSString *const FBSDKGateKeeperAppEventsIfAutoLogSubs = @"app_events_if_auto_log_subs";
 static int const FBSDKMaxParameterValueLength = 100;
 
 @interface FBSDKPaymentProductRequestor ()
 
-@property (class, nonatomic, readonly) NSMutableArray *pendingRequestors;
+@property (class, nonatomic, readonly) NSMutableArray<FBSDKPaymentProductRequestor *> *pendingRequestors;
 @property (nonatomic, retain) SKPaymentTransaction *transaction;
 @property (nonatomic, readonly) id<FBSDKAppStoreReceiptProviding> appStoreReceiptProvider;
 @property (nonatomic, retain) id<FBSDKProductsRequest> productsRequest;
@@ -62,7 +38,7 @@ static int const FBSDKMaxParameterValueLength = 100;
 @property (nonatomic, readonly) id<FBSDKEventLogging> eventLogger;
 @property (nonatomic, readonly) Class<FBSDKGateKeeperManaging> gateKeeperManager;
 @property (nonatomic, readonly) id<FBSDKDataPersisting> store;
-@property (nonatomic, readonly) id<FBSDKLoggingCreating> loggerFactory;
+@property (nonatomic, readonly) id<__FBSDKLoggerCreating> loggerFactory;
 @property (nonatomic) NSMutableSet<NSString *> *originalTransactionSet;
 @property (nonatomic) NSSet<NSString *> *eventsWithReceipt;
 @property (nonatomic, readonly) NSDateFormatter *formatter;
@@ -71,7 +47,7 @@ static int const FBSDKMaxParameterValueLength = 100;
 
 @implementation FBSDKPaymentProductRequestor
 
-static NSMutableArray *_pendingRequestors;
+static NSMutableArray<FBSDKPaymentProductRequestor *> *_pendingRequestors;
 
 + (void)initialize
 {
@@ -85,7 +61,7 @@ static NSMutableArray *_pendingRequestors;
                         eventLogger:(id<FBSDKEventLogging>)eventLogger
                   gateKeeperManager:(Class<FBSDKGateKeeperManaging>)gateKeeperManager
                               store:(id<FBSDKDataPersisting>)store
-                      loggerFactory:(id<FBSDKLoggingCreating>)loggerFactory
+                      loggerFactory:(id<__FBSDKLoggerCreating>)loggerFactory
              productsRequestFactory:(id<FBSDKProductsRequestCreating>)productRequestFactory
             appStoreReceiptProvider:(id<FBSDKAppStoreReceiptProviding>)receiptProvider
 {
@@ -100,7 +76,7 @@ static NSMutableArray *_pendingRequestors;
     _transaction = transaction;
     _formatter = [NSDateFormatter new];
     _formatter.dateFormat = @"yyyy-MM-dd HH:mm:ssZ";
-    NSString *data = [_store stringForKey:FBSDKPaymentObserverOriginalTransactionKey];
+    NSString *data = [_store fb_stringForKey:FBSDKPaymentObserverOriginalTransactionKey];
     _eventsWithReceipt = [NSSet setWithArray:@[FBSDKAppEventNamePurchased, FBSDKAppEventNameSubscribe,
                                                FBSDKAppEventNameStartTrial]];
     if (data) {
@@ -112,7 +88,7 @@ static NSMutableArray *_pendingRequestors;
   return self;
 }
 
-+ (NSMutableArray *)pendingRequestors
++ (NSMutableArray<FBSDKPaymentProductRequestor *> *)pendingRequestors
 {
   return _pendingRequestors;
 }
@@ -130,7 +106,10 @@ static NSMutableArray *_pendingRequestors;
 - (void)resolveProducts
 {
   NSString *productId = self.transaction.payment.productIdentifier;
-  NSSet *productIdentifiers = [NSSet setWithObjects:productId, nil];
+  if (!productId) {
+    return;
+  }
+  NSSet<NSString *> *productIdentifiers = [NSSet setWithObject:productId];
   self.productsRequest = [self.productRequestFactory createWithProductIdentifiers:productIdentifiers];
   self.productsRequest.delegate = self;
   @synchronized(self.class.pendingRequestors) {
@@ -162,11 +141,10 @@ static NSMutableArray *_pendingRequestors;
 - (BOOL)isSubscription:(SKProduct *)product
 {
 #if !TARGET_OS_TV
-  if (@available(iOS 11.2, *)) {
-    return (product.subscriptionPeriod != nil) && ((unsigned long)product.subscriptionPeriod.numberOfUnits > 0);
-  }
-#endif
+  return (product.subscriptionPeriod != nil) && ((unsigned long)product.subscriptionPeriod.numberOfUnits > 0);
+#else
   return NO;
+#endif
 }
 
 - (NSMutableDictionary<NSString *, id> *)getEventParametersOfProduct:(SKProduct *)product
@@ -200,37 +178,33 @@ static NSMutableArray *_pendingRequestors;
        FBSDKAppEventParameterNameProductTitle : [self getTruncatedString:product.localizedTitle],
        FBSDKAppEventParameterNameDescription : [self getTruncatedString:product.localizedDescription],
      }];
-    if (@available(iOS 10.0, *)) {
-      [FBSDKTypeUtility dictionary:eventParameters
-                         setObject:product.priceLocale.currencyCode
-                            forKey:FBSDKAppEventParameterNameCurrency];
-    }
+    [FBSDKTypeUtility dictionary:eventParameters
+                       setObject:product.priceLocale.currencyCode
+                          forKey:FBSDKAppEventParameterNameCurrency];
     if (transactionID) {
       [FBSDKTypeUtility dictionary:eventParameters setObject:transactionID forKey:FBSDKAppEventParameterNameTransactionID];
     }
   }
 
 #if !TARGET_OS_TV
-  if (@available(iOS 11.2, *)) {
-    if ([self isSubscription:product]) {
-      // subs inapp
-      [FBSDKTypeUtility dictionary:eventParameters setObject:[self durationOfSubscriptionPeriod:product.subscriptionPeriod] forKey:FBSDKAppEventParameterNameSubscriptionPeriod];
-      [FBSDKTypeUtility dictionary:eventParameters setObject:@"subs" forKey:FBSDKAppEventParameterNameInAppPurchaseType];
-      [FBSDKTypeUtility dictionary:eventParameters setObject:[self isStartTrial:transaction ofProduct:product] ? @"1" : @"0" forKey:FBSDKAppEventParameterNameIsStartTrial];
-      // trial information for subs
-      SKProductDiscount *discount = product.introductoryPrice;
-      if (discount) {
-        if (discount.paymentMode == SKProductDiscountPaymentModeFreeTrial) {
-          [FBSDKTypeUtility dictionary:eventParameters setObject:@"1" forKey:FBSDKAppEventParameterNameHasFreeTrial];
-        } else {
-          [FBSDKTypeUtility dictionary:eventParameters setObject:@"0" forKey:FBSDKAppEventParameterNameHasFreeTrial];
-        }
-        [FBSDKTypeUtility dictionary:eventParameters setObject:[self durationOfSubscriptionPeriod:discount.subscriptionPeriod] forKey:FBSDKAppEventParameterNameTrialPeriod];
-        [FBSDKTypeUtility dictionary:eventParameters setObject:discount.price forKey:FBSDKAppEventParameterNameTrialPrice];
+  if ([self isSubscription:product]) {
+    // subs inapp
+    [FBSDKTypeUtility dictionary:eventParameters setObject:[self durationOfSubscriptionPeriod:product.subscriptionPeriod] forKey:FBSDKAppEventParameterNameSubscriptionPeriod];
+    [FBSDKTypeUtility dictionary:eventParameters setObject:@"subs" forKey:FBSDKAppEventParameterNameInAppPurchaseType];
+    [FBSDKTypeUtility dictionary:eventParameters setObject:[self isStartTrial:transaction ofProduct:product] ? @"1" : @"0" forKey:FBSDKAppEventParameterNameIsStartTrial];
+    // trial information for subs
+    SKProductDiscount *discount = product.introductoryPrice;
+    if (discount) {
+      if (discount.paymentMode == SKProductDiscountPaymentModeFreeTrial) {
+        [FBSDKTypeUtility dictionary:eventParameters setObject:@"1" forKey:FBSDKAppEventParameterNameHasFreeTrial];
+      } else {
+        [FBSDKTypeUtility dictionary:eventParameters setObject:@"0" forKey:FBSDKAppEventParameterNameHasFreeTrial];
       }
-    } else {
-      [FBSDKTypeUtility dictionary:eventParameters setObject:@"inapp" forKey:FBSDKAppEventParameterNameInAppPurchaseType];
+      [FBSDKTypeUtility dictionary:eventParameters setObject:[self durationOfSubscriptionPeriod:discount.subscriptionPeriod] forKey:FBSDKAppEventParameterNameTrialPeriod];
+      [FBSDKTypeUtility dictionary:eventParameters setObject:discount.price forKey:FBSDKAppEventParameterNameTrialPrice];
     }
+  } else {
+    [FBSDKTypeUtility dictionary:eventParameters setObject:@"inapp" forKey:FBSDKAppEventParameterNameInAppPurchaseType];
   }
 #endif
   return eventParameters;
@@ -242,8 +216,8 @@ static NSMutableArray *_pendingRequestors;
     return;
   }
   [self.originalTransactionSet addObject:transactionID];
-  [self.store setObject:[[self.originalTransactionSet allObjects] componentsJoinedByString:FBSDKPaymentObserverDelimiter]
-                 forKey:FBSDKPaymentObserverOriginalTransactionKey];
+  [self.store fb_setObject:[[self.originalTransactionSet allObjects] componentsJoinedByString:FBSDKPaymentObserverDelimiter]
+                    forKey:FBSDKPaymentObserverOriginalTransactionKey];
 }
 
 - (void)clearOriginalTransactionID:(NSString *)transactionID
@@ -252,8 +226,8 @@ static NSMutableArray *_pendingRequestors;
     return;
   }
   [self.originalTransactionSet removeObject:transactionID];
-  [self.store setObject:[[self.originalTransactionSet allObjects] componentsJoinedByString:FBSDKPaymentObserverDelimiter]
-                 forKey:FBSDKPaymentObserverOriginalTransactionKey];
+  [self.store fb_setObject:[[self.originalTransactionSet allObjects] componentsJoinedByString:FBSDKPaymentObserverDelimiter]
+                    forKey:FBSDKPaymentObserverOriginalTransactionKey];
 }
 
 - (BOOL)isStartTrial:(SKPaymentTransaction *)transaction
@@ -261,48 +235,42 @@ static NSMutableArray *_pendingRequestors;
 {
 #if !TARGET_OS_TV
   // promotional offer starting from iOS 12.2
-  if (@available(iOS 12.2, *)) {
-    SKPaymentDiscount *paymentDiscount = transaction.payment.paymentDiscount;
-    if (paymentDiscount) {
-      NSArray<SKProductDiscount *> *discounts = product.discounts;
-      for (SKProductDiscount *discount in discounts) {
-        if (discount.paymentMode == SKProductDiscountPaymentModeFreeTrial
-            && [paymentDiscount.identifier isEqualToString:discount.identifier]) {
-          return YES;
-        }
+  SKPaymentDiscount *paymentDiscount = transaction.payment.paymentDiscount;
+  if (paymentDiscount) {
+    NSArray<SKProductDiscount *> *discounts = product.discounts;
+    for (SKProductDiscount *discount in discounts) {
+      if (discount.paymentMode == SKProductDiscountPaymentModeFreeTrial
+          && [paymentDiscount.identifier isEqualToString:discount.identifier]) {
+        return YES;
       }
     }
   }
-  // introductory offer starting from iOS 11.2
-  if (@available(iOS 11.2, *)) {
-    if (product.introductoryPrice
-        && product.introductoryPrice.paymentMode == SKProductDiscountPaymentModeFreeTrial) {
-      NSString *originalTransactionID = transaction.originalTransaction.transactionIdentifier;
-      // only consider the very first trial transaction as start trial
-      if (!originalTransactionID) {
-        return YES;
-      }
+
+  if (product.introductoryPrice
+      && product.introductoryPrice.paymentMode == SKProductDiscountPaymentModeFreeTrial) {
+    NSString *originalTransactionID = transaction.originalTransaction.transactionIdentifier;
+    // only consider the very first trial transaction as start trial
+    if (!originalTransactionID) {
+      return YES;
     }
   }
 #endif
   return NO;
 }
 
-- (NSString *)durationOfSubscriptionPeriod:(id)subcriptionPeriod
+- (nullable NSString *)durationOfSubscriptionPeriod:(id)subcriptionPeriod
 {
 #if !TARGET_OS_TV
-  if (@available(iOS 11.2, *)) {
-    if (subcriptionPeriod && [subcriptionPeriod isKindOfClass:SKProductSubscriptionPeriod.class]) {
-      SKProductSubscriptionPeriod *period = (SKProductSubscriptionPeriod *)subcriptionPeriod;
-      NSString *unit = nil;
-      switch (period.unit) {
-        case SKProductPeriodUnitDay: unit = @"D"; break;
-        case SKProductPeriodUnitWeek: unit = @"W"; break;
-        case SKProductPeriodUnitMonth: unit = @"M"; break;
-        case SKProductPeriodUnitYear: unit = @"Y"; break;
-      }
-      return [NSString stringWithFormat:@"P%lu%@", (unsigned long)period.numberOfUnits, unit];
+  if (subcriptionPeriod && [subcriptionPeriod isKindOfClass:SKProductSubscriptionPeriod.class]) {
+    SKProductSubscriptionPeriod *period = (SKProductSubscriptionPeriod *)subcriptionPeriod;
+    NSString *unit = nil;
+    switch (period.unit) {
+      case SKProductPeriodUnitDay: unit = @"D"; break;
+      case SKProductPeriodUnitWeek: unit = @"W"; break;
+      case SKProductPeriodUnitMonth: unit = @"M"; break;
+      case SKProductPeriodUnitYear: unit = @"Y"; break;
     }
+    return [NSString stringWithFormat:@"P%lu%@", (unsigned long)period.numberOfUnits, unit];
   }
 #endif
   return nil;
@@ -310,15 +278,15 @@ static NSMutableArray *_pendingRequestors;
 
 - (void)productsRequest:(SKProductsRequest *)request didReceiveResponse:(SKProductsResponse *)response
 {
-  NSArray *products = response.products;
-  NSArray *invalidProductIdentifiers = response.invalidProductIdentifiers;
+  NSArray<SKProduct *> *products = response.products;
+  NSArray<NSString *> *invalidProductIdentifiers = response.invalidProductIdentifiers;
   if (products.count + invalidProductIdentifiers.count != 1) {
     id<FBSDKLogging> logger = [self.loggerFactory createLoggerWithLoggingBehavior:FBSDKLoggingBehaviorAppEvents];
     [logger logEntry:@"FBSDKPaymentObserver: Expect to resolve one product per request"];
   }
   SKProduct *product = nil;
   if (products.count) {
-    product = [FBSDKTypeUtility array:products objectAtIndex:0];
+    product = products.firstObject;
   }
   [self logTransactionEvent:product];
 }
@@ -348,7 +316,7 @@ static NSMutableArray *_pendingRequestors;
   NSString *originalTransactionID = transaction.originalTransaction.transactionIdentifier;
   switch (transaction.transactionState) {
     case SKPaymentTransactionStatePurchasing:
-      eventName = @"SubscriptionInitiatedCheckout";
+      eventName = FBSDKAppEventNameSubscribeInitiatedCheckout;
       break;
     case SKPaymentTransactionStatePurchased:
       if ([self isStartTrial:transaction ofProduct:product]) {
@@ -363,10 +331,10 @@ static NSMutableArray *_pendingRequestors;
       }
       break;
     case SKPaymentTransactionStateFailed:
-      eventName = @"SubscriptionFailed";
+      eventName = FBSDKAppEventNameSubscribeFailed;
       break;
     case SKPaymentTransactionStateRestored:
-      eventName = @"SubscriptionRestore";
+      eventName = FBSDKAppEventNameSubscribeRestore;
       break;
     case SKPaymentTransactionStateDeferred:
       return;
@@ -417,7 +385,7 @@ static NSMutableArray *_pendingRequestors;
                          valueToSum:(double)valueToSum
                          parameters:(nullable NSDictionary<NSString *, id> *)parameters
 {
-  NSMutableDictionary<NSString *, id> *eventParameters = [NSMutableDictionary dictionaryWithDictionary:parameters];
+  NSMutableDictionary<FBSDKAppEventParameterName, id> *eventParameters = [NSMutableDictionary dictionaryWithDictionary:parameters];
 
   if ([_eventsWithReceipt containsObject:eventName]) {
     NSData *receipt = [self fetchDeviceReceipt];
@@ -427,7 +395,7 @@ static NSMutableArray *_pendingRequestors;
     }
   }
 
-  [FBSDKTypeUtility dictionary:eventParameters setObject:@"1" forKey:FBSDKAppEventParameterImplicitlyLoggedPurchase];
+  [FBSDKTypeUtility dictionary:eventParameters setObject:@"1" forKey:FBSDKAppEventParameterNameImplicitlyLoggedPurchase];
   [self.eventLogger logEvent:eventName
                   valueToSum:valueToSum
                   parameters:eventParameters];
@@ -446,5 +414,7 @@ static NSMutableArray *_pendingRequestors;
   NSData *receipt = [NSData dataWithContentsOfURL:receiptURL];
   return receipt;
 }
+
+#pragma clang diagnostic pop
 
 @end

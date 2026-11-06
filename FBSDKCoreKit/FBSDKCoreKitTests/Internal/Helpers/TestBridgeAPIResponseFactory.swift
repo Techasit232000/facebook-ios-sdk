@@ -1,42 +1,33 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-@objcMembers
-class TestBridgeAPIResponseFactory: NSObject, BridgeAPIResponseCreating {
+@testable import FBSDKCoreKit
+
+final class TestBridgeAPIResponseFactory: BridgeAPIResponseCreating {
 
   var capturedResponseURL: URL?
   var capturedSourceApplication: String?
   var stubbedResponse: BridgeAPIResponse?
   var shouldFailCreation = false
 
-  func createResponseCancelled(with request: BridgeAPIRequestProtocol) -> BridgeAPIResponse {
-    stubbedResponse ?? createResponse(request: request, cancelled: true)
+  func createResponseCancelled(request: BridgeAPIRequestProtocol) -> BridgeAPIResponse {
+    stubbedResponse ?? createResponse(withRequest: request, cancelled: true)
   }
 
   func createResponse(
-    with request: BridgeAPIRequestProtocol,
+    request: BridgeAPIRequestProtocol,
     error: Error
   ) -> BridgeAPIResponse {
-    stubbedResponse ?? createResponse(request: request, error: error)
+    stubbedResponse ?? createResponse(withRequest: request, error: error)
   }
 
   func createResponse(
-    with request: BridgeAPIRequestProtocol,
+    request: BridgeAPIRequestProtocol,
     responseURL: URL,
     sourceApplication: String?
   ) throws -> BridgeAPIResponse {
@@ -47,11 +38,11 @@ class TestBridgeAPIResponseFactory: NSObject, BridgeAPIResponseCreating {
       throw CoreError(.errorBridgeAPIResponse)
     }
 
-    return stubbedResponse ?? createResponse(request: request)
+    return stubbedResponse ?? createResponse(withRequest: request)
   }
 
   private func createResponse(
-    request: BridgeAPIRequestProtocol,
+    withRequest request: BridgeAPIRequestProtocol,
     error: Error? = nil,
     cancelled: Bool = false
   ) -> BridgeAPIResponse {

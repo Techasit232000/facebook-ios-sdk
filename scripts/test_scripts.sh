@@ -1,21 +1,9 @@
 #!/bin/sh
-# Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 #
-# You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-# copy, modify, and distribute this software in source code or binary form for use
-# in connection with the web services and APIs provided by Facebook.
-#
-# As with any software that integrates with the Facebook platform, your use of
-# this software is subject to the Facebook Developer Principles and Policies
-# [http://developers.facebook.com/policy/]. This copyright notice shall be
-# included in all copies or substantial portions of the software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
 # shellcheck disable=SC2039
 # shellcheck source=./run.sh
@@ -73,7 +61,6 @@ test_main_setup() {
     "FBSDKLoginKit"
     "FBSDKShareKit"
     "FBSDKMarketingKit"
-    "FBSDKTVOSKit"
   )
 
   local test_pod_specs=(
@@ -81,7 +68,6 @@ test_main_setup() {
     "FBSDKLoginKit.podspec"
     "FBSDKShareKit.podspec"
     "FBSDKMarketingKit.podspec"
-    "FBSDKTVOSKit.podspec"
     "FacebookSDK.podspec"
   )
 
@@ -89,7 +75,6 @@ test_main_setup() {
     "FBSDKCoreKit.podspec"
     "FBSDKLoginKit.podspec"
     "FBSDKShareKit.podspec"
-    "FBSDKTVOSKit.podspec"
   )
 
   local test_version_change_files=(
@@ -175,7 +160,7 @@ test_main_setup() {
     ((test_failures += 1))
   fi
 
-  if [ "$SDK_GIT_REMOTE" != "https://github.com/facebook/facebook-ios-sdk" ]; then
+  if [ "$SDK_GIT_REMOTE" != "https://github.com/meta/facebook-ios-sdk" ]; then
     test_failure "SDK_GIT_REMOTE not correct"
     ((test_failures += 1))
   fi

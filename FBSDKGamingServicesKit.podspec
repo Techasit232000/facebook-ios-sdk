@@ -1,28 +1,36 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 # Use the --use-libraries switch when pushing or linting this podspec
 
 Pod::Spec.new do |s|
 
   s.name         = 'FBSDKGamingServicesKit'
-  s.version      = '12.0.0'
+  s.version      = '19.0.1'
   s.summary      = 'Official Facebook SDK for iOS to access Facebook Gaming Services'
 
   s.description  = <<-DESC
-                   The Facebook SDK for iOS GamingKit framework provides:
-                   * Friend Finder.
+                   The official Facebook SDK for iOS Gaming Services.
+
+                   See full documentation at:
+                   https://developers.facebook.com/docs/games/gaming-services/sdk-ios
                    DESC
 
   s.homepage     = 'https://developers.facebook.com/docs/ios/'
   s.license      = {
     type: 'Facebook Platform License',
     text: <<-LICENSE
-    Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+    Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.
 
     You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
     copy, modify, and distribute this software in source code or binary form for use
     in connection with the web services and APIs provided by Facebook.
 
     As with any software that integrates with the Facebook platform, your use of
-    this software is subject to the Facebook Developer Principles and Policies
+    this software is subject to the Facebook Platform Policy
     [http://developers.facebook.com/policy/]. This copyright notice shall be
     included in all copies or substantial portions of the software.
 
@@ -37,14 +45,16 @@ Pod::Spec.new do |s|
   s.author       = 'Facebook'
 
   s.platform     = :ios
-  s.ios.deployment_target = '9.0'
+  s.ios.deployment_target = '15.0'
 
   s.swift_version = '5.0'
 
   s.source = {
-    http: "https://github.com/facebook/facebook-ios-sdk/releases/download/v#{s.version}/FacebookSDK_Dynamic.xcframework.zip",
-    sha1: '0b127d1d1e67263110ce87a7afa5135f322e9a47'
+    http: "https://github.com/meta/facebook-ios-sdk/releases/download/v#{s.version}/FacebookSDK_Dynamic.xcframework.zip",
+    sha1: '27ff0783d9d93525ff44042ab3e109b0a2117168'
   }
   s.vendored_frameworks = "XCFrameworks/FBSDKGamingServicesKit.xcframework"
-  s.dependency "FacebookGamingServices", "#{s.version}"
+  s.dependency "FBSDKCoreKit_Basics", "#{s.version}"
+  s.dependency "FBSDKCoreKit", "#{s.version}"
+  s.dependency "FBSDKShareKit", "#{s.version}"
 end

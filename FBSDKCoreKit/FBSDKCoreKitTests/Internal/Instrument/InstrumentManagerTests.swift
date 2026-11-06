@@ -1,37 +1,30 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
+import TestTools
 import XCTest
 
-class InstrumentManagerTests: XCTestCase {
+final class InstrumentManagerTests: XCTestCase {
 
-  var manager = InstrumentManager()
+  var manager = _InstrumentManager.shared
   let settings = TestSettings()
   let crashObserver = TestCrashObserver()
-  let errorReporter = TestErrorReport()
+  let errorReporter = TestErrorReporter()
   let crashHandler = TestCrashHandler()
   let featureManager = TestFeatureManager()
 
   override class func setUp() {
     super.setUp()
-    InstrumentManager.shared.reset()
+    _InstrumentManager.reset()
   }
+
   override func setUp() {
     super.setUp()
 
@@ -39,17 +32,18 @@ class InstrumentManagerTests: XCTestCase {
       featureChecker: featureManager,
       settings: settings,
       crashObserver: crashObserver,
-      errorReport: errorReporter,
+      errorReporter: errorReporter,
       crashHandler: crashHandler
     )
   }
+
   override func tearDown() {
     super.tearDown()
-    InstrumentManager.shared.reset()
+    _InstrumentManager.reset()
   }
 
   func testDefaultDependencies() {
-    let manager = InstrumentManager.shared
+    let manager = _InstrumentManager.shared
 
     XCTAssertNil(
       manager.featureChecker,
@@ -64,8 +58,8 @@ class InstrumentManagerTests: XCTestCase {
       "Should not have a crash observer by default"
     )
     XCTAssertNil(
-      manager.errorReport,
-      "Should not have an error report by default"
+      manager.errorReporter,
+      "Should not have an error reporter by default"
     )
     XCTAssertNil(
       manager.crashHandler,
@@ -74,7 +68,7 @@ class InstrumentManagerTests: XCTestCase {
   }
 
   func testEnablingWithBothEnabled() {
-    settings.stubbedIsAutoLogAppEventsEnabled = true
+    settings.isAutoLogAppEventsEnabled = true
 
     manager.enable()
 
@@ -87,7 +81,7 @@ class InstrumentManagerTests: XCTestCase {
   }
 
   func testEnablingWithAutoLoggingEnabledAndFeaturesDisabled() {
-    settings.stubbedIsAutoLogAppEventsEnabled = true
+    settings.isAutoLogAppEventsEnabled = true
 
     manager.enable()
 
@@ -100,7 +94,7 @@ class InstrumentManagerTests: XCTestCase {
   }
 
   func testEnablingWithAutoLoggingDisabledAndFeaturesEnabled() {
-    settings.stubbedIsAutoLogAppEventsEnabled = false
+    settings.isAutoLogAppEventsEnabled = false
 
     manager.enable()
 
@@ -113,7 +107,7 @@ class InstrumentManagerTests: XCTestCase {
   }
 
   func testEnablingWithBothDisabled() {
-    settings.stubbedIsAutoLogAppEventsEnabled = false
+    settings.isAutoLogAppEventsEnabled = false
 
     manager.enable()
 

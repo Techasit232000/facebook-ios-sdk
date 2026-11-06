@@ -1,22 +1,13 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKAppEventsDeviceInfo.h"
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
+#import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #import <sys/sysctl.h>
 #import <sys/utsname.h>
@@ -29,48 +20,25 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-#import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
-
-#import "FBSDKAppEventsUtility.h"
 #import "FBSDKDynamicFrameworkLoader.h"
 #import "FBSDKInternalUtility+Internal.h"
-#import "FBSDKSettings+Internal.h"
 
 #define FB_ARRAY_COUNT(x) sizeof(x) / sizeof(x[0])
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 static const u_int FB_GROUP1_RECHECK_DURATION = 30 * 60; // seconds
 
-// Apple reports storage in binary gigabytes (1024^3) in their About menus, etc.
-static const u_int FB_GIGABYTE = 1024 * 1024 * 1024; // bytes
-
 @interface FBSDKAppEventsDeviceInfo ()
-
-// Ephemeral data, may change during the lifetime of an app.  We collect them in different
-// 'group' frequencies - group1 may gets collected once every 30 minutes.
-
-// group1
-@property (nonatomic) NSString *carrierName;
-@property (nonatomic) NSString *timeZoneAbbrev;
-@property (nonatomic) unsigned long long remainingDiskSpaceGB;
-@property (nonatomic) NSString *timeZoneName;
-
-// Persistent data, but we maintain it to make rebuilding the device info as fast as possible.
-@property (nonatomic) NSString *bundleIdentifier;
-@property (nonatomic) NSString *longVersion;
-@property (nonatomic) NSString *shortVersion;
-@property (nonatomic) NSString *sysVersion;
-@property (nonatomic) NSString *machine;
-@property (nonatomic) NSString *language;
-@property (nonatomic) unsigned long long totalDiskSpaceGB;
-@property (nonatomic) unsigned long long coreCount;
-@property (nonatomic) CGFloat width;
-@property (nonatomic) CGFloat height;
-@property (nonatomic) CGFloat density;
 
 // Other state
 @property (nonatomic) long lastGroup1CheckTime;
 @property (nonatomic) BOOL isEncodingDirty;
-@property (nonatomic) NSString *encodedDeviceInfo;
+@property (nonatomic) BOOL isCollectingGroup1;
+
+// Dependencies
+@property (nullable, nonatomic) id<FBSDKSettings> settings;
 @end
 
 @implementation FBSDKAppEventsDeviceInfo
@@ -79,39 +47,34 @@ static const u_int FB_GIGABYTE = 1024 * 1024 * 1024; // bytes
 
 #pragma mark - Public Methods
 
-+ (void)extendDictionaryWithDeviceInfo:(NSMutableDictionary<NSString *, id> *)dictionary
+static dispatch_once_t singletonNonce;
+static FBSDKAppEventsDeviceInfo *sharedInstance;
++ (instancetype)shared
 {
-  [FBSDKTypeUtility dictionary:dictionary setObject:[self.sharedDeviceInfo encodedDeviceInfo] forKey:@"extinfo"];
+  dispatch_once(&singletonNonce, ^{
+    sharedInstance = [FBSDKAppEventsDeviceInfo new];
+  });
+  return sharedInstance;
+}
+
+- (void)configureWithSettings:(id<FBSDKSettings>)settings
+{
+  self.settings = settings;
+  self.isEncodingDirty = YES;
+
+  [self _collectPersistentData];
+}
+
+- (NSString *)storageKey
+{
+  return @"extinfo";
 }
 
 #pragma mark - Internal Methods
 
-+ (void)initialize
+- (nullable NSString *)encodedDeviceInfo
 {
-  if (self == FBSDKAppEventsDeviceInfo.class) {
-    [self.sharedDeviceInfo _collectPersistentData];
-  }
-}
-
-+ (instancetype)sharedDeviceInfo
-{
-  static FBSDKAppEventsDeviceInfo *_sharedDeviceInfo = nil;
-  if (_sharedDeviceInfo == nil) {
-    _sharedDeviceInfo = [FBSDKAppEventsDeviceInfo new];
-  }
-  return _sharedDeviceInfo;
-}
-
-- (instancetype)init
-{
-  if ((self = [super init])) {
-    _isEncodingDirty = YES;
-  }
-  return self;
-}
-
-- (NSString *)encodedDeviceInfo
-{
+  BOOL needsGroup1Collection = NO;
   @synchronized(self) {
     BOOL isGroup1Expired = [self _isGroup1Expired];
     BOOL isEncodingExpired = isGroup1Expired; // Can || other groups in if we add them
@@ -121,25 +84,28 @@ static const u_int FB_GIGABYTE = 1024 * 1024 * 1024; // bytes
       return _encodedDeviceInfo;
     }
 
-    if (isGroup1Expired) {
-      [self _collectGroup1Data];
+    if (isGroup1Expired && !_isCollectingGroup1) {
+      _isCollectingGroup1 = YES;
+      needsGroup1Collection = YES;
     }
+  }
 
+  // Collect expensive data outside the lock to avoid blocking while
+  // CTTelephonyNetworkInfo accesses the main thread internally.
+  if (needsGroup1Collection) {
+    [self _collectGroup1Data];
+    @synchronized(self) {
+      _isCollectingGroup1 = NO;
+    }
+  }
+
+  @synchronized(self) {
     if (_isEncodingDirty) {
-      self.encodedDeviceInfo = [self _generateEncoding];
+      _encodedDeviceInfo = [self _generateEncoding];
       _isEncodingDirty = NO;
     }
 
     return _encodedDeviceInfo;
-  }
-}
-
-- (void)setEncodedDeviceInfo:(NSString *)encodedDeviceInfo
-{
-  @synchronized(self) {
-    if (![_encodedDeviceInfo isEqualToString:encodedDeviceInfo]) {
-      _encodedDeviceInfo = [encodedDeviceInfo copy];
-    }
   }
 }
 
@@ -148,128 +114,97 @@ static const u_int FB_GIGABYTE = 1024 * 1024 * 1024; // bytes
 {
   // Bundle stuff
   NSBundle *mainBundle = NSBundle.mainBundle;
-  _bundleIdentifier = mainBundle.bundleIdentifier;
-  _longVersion = [mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"];
-  _shortVersion = [mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+  self.bundleIdentifier = mainBundle.bundleIdentifier;
+  self.longVersion = [mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"];
+  self.shortVersion = [mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
 
   // Locale stuff
-  _language = NSLocale.currentLocale.localeIdentifier;
+  self.language = NSLocale.currentLocale.localeIdentifier;
 
   // Device stuff
   UIDevice *device = [UIDevice currentDevice];
-  _sysVersion = device.systemVersion;
-  _coreCount = [FBSDKAppEventsDeviceInfo _coreCount];
+  self.sysVersion = device.systemVersion;
+  self.coreCount = [FBSDKAppEventsDeviceInfo _readCoreCount];
 
   UIScreen *sc = [UIScreen mainScreen];
   CGRect sr = sc.bounds;
-  _width = sr.size.width;
-  _height = sr.size.height;
-  _density = sc.scale;
+  self.width = sr.size.width;
+  self.height = sr.size.height;
+  self.density = sc.scale;
 
   struct utsname systemInfo;
   uname(&systemInfo);
-  _machine = @(systemInfo.machine);
-
-  // Disk space stuff
-  float totalDiskSpace = [FBSDKAppEventsDeviceInfo _getTotalDiskSpace].floatValue;
-  _totalDiskSpaceGB = (unsigned long long)round(totalDiskSpace / FB_GIGABYTE);
+  self.machine = @(systemInfo.machine);
 }
 
 - (BOOL)_isGroup1Expired
 {
-  return ([self unixTimeNow] - _lastGroup1CheckTime) > FB_GROUP1_RECHECK_DURATION;
+  return ([self unixTimeNow] - self.lastGroup1CheckTime) > FB_GROUP1_RECHECK_DURATION;
 }
 
 // This data is collected only once every GROUP1_RECHECK_DURATION.
 - (void)_collectGroup1Data
 {
-  const BOOL shouldUseCachedValues = FBSDKSettings.sharedSettings.shouldUseCachedValuesForExpensiveMetadata;
+  const BOOL shouldUseCachedValues = self.settings.shouldUseCachedValuesForExpensiveMetadata;
 
-  if (!_carrierName || !shouldUseCachedValues) {
+  if (!self.carrierName || !shouldUseCachedValues) {
     NSString *newCarrierName = [FBSDKAppEventsDeviceInfo _getCarrier];
-    if (!_carrierName || ![newCarrierName isEqualToString:_carrierName]) {
-      _carrierName = newCarrierName;
-      _isEncodingDirty = YES;
+    if (!self.carrierName || ![newCarrierName isEqualToString:self.carrierName]) {
+      self.carrierName = newCarrierName;
+      self.isEncodingDirty = YES;
     }
   }
 
-  if (!_timeZoneName || !_timeZoneAbbrev || !shouldUseCachedValues) {
+  if (!self.timeZoneName || !self.timeZoneAbbrev || !shouldUseCachedValues) {
     NSTimeZone *timeZone = NSTimeZone.systemTimeZone;
     NSString *timeZoneName = timeZone.name;
-    if (!_timeZoneName || ![timeZoneName isEqualToString:_timeZoneName]) {
-      _timeZoneName = timeZoneName;
-      _timeZoneAbbrev = timeZone.abbreviation;
-      _isEncodingDirty = YES;
+    if (!self.timeZoneName || ![timeZoneName isEqualToString:self.timeZoneName]) {
+      self.timeZoneName = timeZoneName;
+      self.timeZoneAbbrev = timeZone.abbreviation;
+      self.isEncodingDirty = YES;
     }
   }
 
-  // Remaining disk space
-  float remainingDiskSpace = [FBSDKAppEventsDeviceInfo _getRemainingDiskSpace].floatValue;
-  unsigned long long newRemainingDiskSpaceGB = (unsigned long long)round(remainingDiskSpace / FB_GIGABYTE);
-  if (_remainingDiskSpaceGB != newRemainingDiskSpaceGB) {
-    _remainingDiskSpaceGB = newRemainingDiskSpaceGB;
-    _isEncodingDirty = YES;
-  }
-
-  _lastGroup1CheckTime = [self unixTimeNow];
+  self.lastGroup1CheckTime = [self unixTimeNow];
 }
 
-- (NSString *)_generateEncoding
+- (nullable NSString *)_generateEncoding
 {
   // Keep a bit of precision on density as it's the most likely to become non-integer.
   NSString *densityString = _density ? [NSString stringWithFormat:@"%.02f", _density] : @"";
 
-  NSArray *arr = @[
+  NSArray<id> *arr = @[
     @"i2", // version - starts with 'i' for iOS, we'll use 'a' for Android
-    _bundleIdentifier ?: @"",
-    _longVersion ?: @"",
-    _shortVersion ?: @"",
-    _sysVersion ?: @"",
-    _machine ?: @"",
-    _language ?: @"",
-    _timeZoneAbbrev ?: @"",
-    _carrierName ?: @"",
-    _width ? @((unsigned long)_width) : @"",
-    _height ? @((unsigned long)_height) : @"",
+    self.bundleIdentifier ?: @"",
+    self.longVersion ?: @"",
+    self.shortVersion ?: @"",
+    self.sysVersion ?: @"",
+    self.machine ?: @"",
+    self.language ?: @"",
+    self.timeZoneAbbrev ?: @"",
+    self.carrierName ?: @"",
+    self.width ? @((unsigned long)self.width) : @"",
+    self.height ? @((unsigned long)self.height) : @"",
     densityString,
-    @(_coreCount) ?: @"",
-    @(_totalDiskSpaceGB) ?: @"",
-    @(_remainingDiskSpaceGB) ?: @"",
-    _timeZoneName ?: @""
+    @(self.coreCount) ?: @"",
+    @-1,
+    @-1,
+    self.timeZoneName ?: @""
   ];
 
-  return [FBSDKBasicUtility JSONStringForObject:arr error:NULL invalidObjectHandler:NULL];
+  return [FBSDKBasicUtility JSONStringForObject:arr
+                                          error:NULL
+                           invalidObjectHandler:NULL];
 }
-
-#pragma mark - Helper Methods
 
 - (NSTimeInterval)unixTimeNow
 {
   return round([NSDate date].timeIntervalSince1970);
 }
 
-+ (NSNumber *)_getTotalDiskSpace
++ (uint)_readCoreCount
 {
-  NSDictionary<NSString *, id> *attrs = [[NSFileManager new] attributesOfFileSystemForPath:NSHomeDirectory()
-                                                                                     error:nil];
-  return attrs[NSFileSystemSize];
-}
-
-+ (NSNumber *)_getRemainingDiskSpace
-{
-  NSDictionary<NSString *, id> *attrs = [[NSFileManager new] attributesOfFileSystemForPath:NSHomeDirectory()
-                                                                                     error:nil];
-  return attrs[NSFileSystemFreeSize];
-}
-
-+ (uint)_coreCount
-{
-  return [FBSDKAppEventsDeviceInfo _readSysCtlUInt:CTL_HW type:HW_AVAILCPU];
-}
-
-+ (uint)_readSysCtlUInt:(int)ctl type:(int)type
-{
-  int mib[2] = {ctl, type};
+  int mib[2] = {CTL_HW, HW_AVAILCPU};
   uint value;
   size_t size = sizeof value;
   if (0 != sysctl(mib, FB_ARRAY_COUNT(mib), &value, &size, NULL, 0)) {
@@ -278,11 +213,9 @@ static const u_int FB_GIGABYTE = 1024 * 1024 * 1024; // bytes
   return value;
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 + (NSString *)_getCarrier
 {
-#if TARGET_OS_TV || TARGET_OS_SIMULATOR
+#if TARGET_OS_SIMULATOR
   return @"NoCarrier";
 #else
   // Dynamically load class for this so calling app doesn't need to link framework in.
@@ -293,5 +226,13 @@ static const u_int FB_GIGABYTE = 1024 * 1024 * 1024; // bytes
 }
 
 #pragma clang diagnostic pop
+
+#if DEBUG
+- (void)resetDependencies
+{
+  self.settings = nil;
+}
+
+#endif
 
 @end

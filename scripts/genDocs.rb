@@ -1,21 +1,9 @@
 #!/usr/bin/env ruby
-# Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 #
-# You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-# copy, modify, and distribute this software in source code or binary form for use
-# in connection with the web services and APIs provided by Facebook.
-#
-# As with any software that integrates with the Facebook platform, your use of
-# this software is subject to the Facebook Developer Principles and Policies
-# [http://developers.facebook.com/policy/]. This copyright notice shall be
-# included in all copies or substantial portions of the software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
 require "json"
 require "FileUtils"
@@ -27,13 +15,11 @@ kit = ARGV[0]
 CORE_KIT = 'FBSDKCoreKit'
 LOGIN_KIT = 'FBSDKLoginKit'
 SHARE_KIT = 'FBSDKShareKit'
-GAMING_SERVICES_KIT = 'FBSDKGamingServicesKit'
 
 HEADER_PATHS = {
   CORE_KIT => "FBSDKCoreKit/FBSDKCoreKit/include/FBSDKCoreKit.h",
   LOGIN_KIT => "FBSDKLoginKit/FBSDKLoginKit/FBSDKLoginKit.h",
   SHARE_KIT => "FBSDKShareKit/FBSDKShareKit/FBSDKShareKit.h",
-  GAMING_SERVICES_KIT => "FBSDKGamingServicesKit/FacebookGamingServices/FacebookGamingServices.h",
 }
 
 def base_path
@@ -62,8 +48,18 @@ def rec_path(path)
   end.select { |x| x }.flatten(1)
 end
 
+SDK_VERSION_FILE = 'FBSDKCoreKit_Basics/FBSDKCoreKit_Basics/include/FBSDKVersions.h'.freeze
+
+# Resolved here rather than left as a shell substitution in the jazzy argument: an
+# unreadable version used to reach jazzy as --module-version "" and publish docs
+# stamped with no version at all, which nothing downstream would have flagged.
 def sdk_version
-  "$(grep -Eo 'FBSDK_VERSION_STRING @\".*\"' \"FBSDKCoreKit/FBSDKCoreKit/include/FBSDKCoreKitVersions.h\" | awk -F'\"' '{print $2}')"
+  version = `grep -Eo 'FBSDK_VERSION_STRING @".*"' "#{SDK_VERSION_FILE}" | awk -F'"' '{print $2}'`.strip
+  if version.empty?
+    abort("ERROR: no FBSDK_VERSION_STRING found in #{SDK_VERSION_FILE}\n" \
+          "       This is the canonical version definition; if it moved, update this script.")
+  end
+  version
 end
 
 def generateSourceKittenOutputForObjC(kit)
@@ -107,14 +103,23 @@ def combineSourceKittenOutputFor(kit)
     --sourcekitten-sourcefile #{sourcefiles}"
 end
 
+def generateSwiftOnlyDocs(kit)
+  command = "bundle exec jazzy \
+    --config #{base_path + '.jazzy.yaml'} \
+    --output docs/#{kit} \
+    --module #{kit} \
+    --module-version \"#{sdk_version}\" \
+    --build-tool-arguments -scheme,#{kit}-Dynamic"
+  system "#{command}"
+end
+
 case kit
 when /#{CORE_KIT}|#{LOGIN_KIT}|#{SHARE_KIT}/
   generateSourceKittenOutputForSwift(kit)
   generateSourceKittenOutputForObjC(kit)
   combineSourceKittenOutputFor(kit)
 else
-  generateSourceKittenOutputForObjC(kit)
-  combineSourceKittenOutputFor(kit)
+  generateSwiftOnlyDocs(kit)
 end
 
 File.delete("tmpSwift") if File.exist?("tmpSwift")

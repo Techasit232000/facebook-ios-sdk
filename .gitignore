@@ -4,9 +4,18 @@
 
 ## Build generated
 build/
+.build/
 DerivedData/
 *-Focused.xcworkspace/
-*-Focused.xcodeproj/
+
+## Ignore generated project files.
+## Eventually ignore all project files once they are all generated.
+FBAEMKit/FBAEMKit.xcodeproj
+FBSDKCoreKit/FBSDKCoreKit.xcodeproj
+FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.xcodeproj
+FBSDKLoginKit/FBSDKLoginKit.xcodeproj
+FBSDKShareKit/FBSDKShareKit.xcodeproj
+FBSDKGamingServicesKit/FBSDKGamingServicesKit.xcodeproj
 
 ## Various settings
 *.pbxuser
@@ -39,12 +48,6 @@ xcuserdata/
 
 Pods/
 
-# Carthage
-#
-# Add this line if you want to avoid checking in source code from Carthage dependencies.
-
-Carthage/
-
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
@@ -58,12 +61,6 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 # Custom
-internal/testing/Hackbook/Hackbook.xcodeproj/project.pbxproj
-internal/testing/Hackbook/Hackbook.xcworkspace/buck-project.meta.json
-internal/testing/Hackbook/Hackbook.xcworkspace/contents.xcworkspacedata
-internal/testing/Hackbook/Hackbook.xcworkspace/xcshareddata/xcschemes/Hackbook.xcscheme
-internal/testing/Hackbook/Hackbook.xcworkspace/xcshareddata/xcschemes/ios-sdk.xcscheme
-internal/testing/Hackbook/Hackbook.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 samples/LoginSample/Pods
 samples/LoginSample/LoginSample.xcworkspace
 lib/
@@ -83,8 +80,25 @@ TestAppIdAndSecret.xcconfig
 *.sw?
 *.un~
 
+# Python
+__pycache__/
+*.py[cod]
+
 # buck
 buck-out/
 .buckd/
 
 infer-out
+
+# Swift Package Manager
+internal/scripts/Runner/Package.resolved
+internal/scripts/Runner/.build
+internal/scripts/Runner/.swiftpm
+
+# Xcode's generated SPM workspace and shared schemes — committing these (the
+# schemes are shared, not per-user) injects the SDK's schemes into the scheme
+# list of every app that consumes it via SPM (#2515).
+.swiftpm/
+
+# Written by ci/unit_tests.py so build and test steps share one simulator
+.ci_destination_id

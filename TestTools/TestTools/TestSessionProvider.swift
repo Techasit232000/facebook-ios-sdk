@@ -1,57 +1,48 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import FBSDKCoreKit_Basics
 import Foundation
 
 @objcMembers
-public class TestSessionDataTask: NSObject, SessionDataTask {
+public final class TestSessionDataTask: NSObject, NetworkTask {
   public var resumeCallCount = 0
   public var cancelCallCount = 0
   public var stubbedState: URLSessionTask.State = .completed
 
-  public var state: URLSessionTask.State {
+  // swiftlint:disable:next identifier_name
+  public var fb_state: URLSessionTask.State {
     stubbedState
   }
 
-  public func resume() {
+  public func fb_resume() {
     resumeCallCount += 1
   }
 
-  public func cancel() {
+  public func fb_cancel() {
     cancelCallCount += 1
   }
 }
 
 @objcMembers
-public class TestSessionProvider: NSObject, SessionProviding {
+public final class TestSessionProvider: NSObject, URLSessionProviding {
   /// A data task to return from `dataTask(with:completion:)`
-  public var stubbedDataTask: SessionDataTask?
+  public var stubbedDataTask: NetworkTask?
   /// The completion handler to be invoked in the test
   public var capturedCompletion: ((Data?, URLResponse?, Error?) -> Void)?
   /// The url request for the data task
   public var capturedRequest: URLRequest?
   public var dataTaskCallCount = 0
 
-  public func dataTask(
+  public func fb_dataTask(
     with request: URLRequest,
     completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void
-  ) -> SessionDataTask {
+  ) -> NetworkTask {
     dataTaskCallCount += 1
     capturedRequest = request
     capturedCompletion = completionHandler

@@ -1,22 +1,13 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
@@ -24,7 +15,7 @@ final class GraphRequestTests: XCTestCase {
 
   let path = "me"
   let parameters = ["fields": ""]
-  let version = "v12.0"
+  let version = FBSDK_DEFAULT_GRAPH_API_VERSION
   let prefix = "graph."
   let settings = TestSettings()
   var factory = TestGraphRequestConnectionFactory()
@@ -33,10 +24,11 @@ final class GraphRequestTests: XCTestCase {
     super.setUp()
 
     AuthenticationToken.current = nil
-    GraphRequest.reset()
+    GraphRequest.resetClassDependencies()
     AccessToken.resetCurrentAccessTokenCache()
     TestAccessTokenWallet.reset()
 
+    settings.appID = "MockAppID"
     GraphRequest.configure(
       settings: settings,
       currentAccessTokenStringProvider: TestAccessTokenWallet.self,
@@ -45,7 +37,8 @@ final class GraphRequestTests: XCTestCase {
   }
 
   override func tearDown() {
-    GraphRequest.reset()
+    settings.appID = nil
+    GraphRequest.resetClassDependencies()
     TestAccessTokenWallet.reset()
 
     super.tearDown()
@@ -54,7 +47,7 @@ final class GraphRequestTests: XCTestCase {
   // MARK: - Tests
 
   func testDefaultDependencies() {
-    GraphRequest.reset()
+    GraphRequest.resetClassDependencies()
     let request = GraphRequest(graphPath: path)
 
     XCTAssertNil(
@@ -72,11 +65,12 @@ final class GraphRequestTests: XCTestCase {
   }
 
   func testConfiguringWithDependencies() {
-    TestAccessTokenWallet.currentAccessToken = SampleAccessTokens.validToken
+    TestAccessTokenWallet.current = SampleAccessTokens.validToken
     let request = GraphRequest(graphPath: path)
 
-    XCTAssertTrue(
-      GraphRequest.settings === settings,
+    XCTAssertIdentical(
+      GraphRequest.settings,
+      settings,
       "GraphRequest should store the settings dependency it was configured with"
     )
     XCTAssertEqual(
@@ -84,13 +78,14 @@ final class GraphRequestTests: XCTestCase {
       TestAccessTokenWallet.tokenString,
       "Should use the token string provider for the token string"
     )
-    XCTAssertTrue(
-      request.graphRequestConnectionFactory === factory,
+    XCTAssertIdentical(
+      request.graphRequestConnectionFactory,
+      factory,
       "New instances should use the factory provider configured on the type"
     )
   }
 
-  func testCreatingWithCustomUrlSessionProxyFactory() {
+  func testCreatingWithCustomURLSessionProxyFactory() {
     factory = TestGraphRequestConnectionFactory(stubbedConnection: GraphRequestConnection())
     let request = GraphRequest(
       graphPath: path,
@@ -101,14 +96,255 @@ final class GraphRequestTests: XCTestCase {
       graphRequestConnectionFactory: factory
     )
 
-    XCTAssertTrue(
-      request.graphRequestConnectionFactory === factory,
+    XCTAssertIdentical(
+      request.graphRequestConnectionFactory,
+      factory,
       "A graph request should persist the session factory it was created with"
     )
   }
 
+  func testUseAlternative1() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(graphPath: path, useAlternativeDefaultDomainPrefix: false),
+      expectedGraphPath: path,
+      expectedParameters: parameters,
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative2() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        useAlternativeDefaultDomainPrefix: false
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative3() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        httpMethod: .post,
+        useAlternativeDefaultDomainPrefix: false
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative4() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        tokenString: "test_token_string",
+        version: "17.0",
+        httpMethod: .post,
+        forAppEvents: true,
+        useAlternativeDefaultDomainPrefix: false
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: "17.0",
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative5() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        flags: [],
+        useAlternativeDefaultDomainPrefix: false
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative6() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        tokenString: "test_token_string",
+        httpMethod: HTTPMethod.post.rawValue,
+        flags: [],
+        useAlternativeDefaultDomainPrefix: false
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: version,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternative7() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        tokenString: "test_token_string",
+        httpMethod: HTTPMethod.post.rawValue,
+        flags: [],
+        forAppEvents: true,
+        useAlternativeDefaultDomainPrefix: false
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: version,
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: false
+    )
+  }
+
+  func testUseAlternativeDefaultValue1() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(graphPath: path),
+      expectedGraphPath: path,
+      expectedParameters: parameters,
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue2() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"]
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue3() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        httpMethod: .post
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue4() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        tokenString: "test_token_string",
+        version: "17.0",
+        httpMethod: .post,
+        forAppEvents: true
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: "17.0",
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue5() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        flags: []
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: nil,
+      expectedVersion: version,
+      expectedMethod: .get,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue6() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        tokenString: "test_token_string",
+        httpMethod: HTTPMethod.post.rawValue,
+        flags: []
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: version,
+      expectedMethod: .post,
+      expectedUseAlternativeValue: true
+    )
+  }
+
+  func testUseAlternativeDefaultValue7() {
+    GraphRequestTests.verifyRequest(
+      GraphRequest(
+        graphPath: path,
+        parameters: ["key": "value"],
+        tokenString: "test_token_string",
+        httpMethod: HTTPMethod.post.rawValue,
+        flags: [],
+        forAppEvents: true
+      ),
+      expectedGraphPath: path,
+      expectedParameters: ["key": "value"],
+      expectedTokenString: "test_token_string",
+      expectedVersion: version,
+      expectedMethod: .post,
+      expectedForAppEvents: true,
+      expectedUseAlternativeValue: true
+    )
+  }
+
   func testDefaultGETParameters() {
-    verifyRequest(
+    GraphRequestTests.verifyRequest(
       GraphRequest(graphPath: path),
       expectedGraphPath: path,
       expectedParameters: parameters,
@@ -144,41 +380,41 @@ final class GraphRequestTests: XCTestCase {
     [
       GraphRequest(graphPath: path, parameters: [:]),
       GraphRequest(graphPath: path, parameters: [:], flags: []),
-      GraphRequest(graphPath: path, parameters: [:], tokenString: nil, version: version, httpMethod: .get)
+      GraphRequest(graphPath: path, parameters: [:], tokenString: nil, version: version, httpMethod: .get),
     ]
-    .forEach {
-      verifyRequest(
-        $0,
-        expectedGraphPath: path,
-        expectedParameters: [:],
-        expectedTokenString: nil,
-        expectedVersion: version,
-        expectedMethod: .get
-      )
-    }
+      .forEach {
+        GraphRequestTests.verifyRequest(
+          $0,
+          expectedGraphPath: path,
+          expectedParameters: [:],
+          expectedTokenString: nil,
+          expectedVersion: version,
+          expectedMethod: .get
+        )
+      }
   }
 
   func testGraphRequestGETWithNonEmptyParameters() {
     [
       GraphRequest(graphPath: path, parameters: parameters),
       GraphRequest(graphPath: path, parameters: parameters, flags: []),
-      GraphRequest(graphPath: path, parameters: parameters, tokenString: nil, version: version, httpMethod: .get)
+      GraphRequest(graphPath: path, parameters: parameters, tokenString: nil, version: version, httpMethod: .get),
     ]
-    .forEach {
-      verifyRequest(
-        $0,
-        expectedGraphPath: path,
-        expectedParameters: parameters,
-        expectedTokenString: nil,
-        expectedVersion: version,
-        expectedMethod: .get
-      )
-    }
+      .forEach {
+        GraphRequestTests.verifyRequest(
+          $0,
+          expectedGraphPath: path,
+          expectedParameters: parameters,
+          expectedTokenString: nil,
+          expectedVersion: version,
+          expectedMethod: .get
+        )
+      }
   }
 
   func testDefaultPOSTParameters() {
     let request = GraphRequest(graphPath: path, httpMethod: .post)
-    verifyRequest(
+    GraphRequestTests.verifyRequest(
       request,
       expectedGraphPath: path,
       expectedParameters: [:],
@@ -191,44 +427,163 @@ final class GraphRequestTests: XCTestCase {
   func testGraphRequestPOSTWithEmptyParameters() {
     [
       GraphRequest(graphPath: path, parameters: [:], httpMethod: .post),
-      GraphRequest(graphPath: path, parameters: [:], tokenString: nil, version: version, httpMethod: .post)
+      GraphRequest(graphPath: path, parameters: [:], tokenString: nil, version: version, httpMethod: .post),
     ]
-    .forEach {
-      verifyRequest(
-        $0,
-        expectedGraphPath: path,
-        expectedParameters: [:],
-        expectedTokenString: nil,
-        expectedVersion: version,
-        expectedMethod: .post
-      )
-    }
+      .forEach {
+        GraphRequestTests.verifyRequest(
+          $0,
+          expectedGraphPath: path,
+          expectedParameters: [:],
+          expectedTokenString: nil,
+          expectedVersion: version,
+          expectedMethod: .post
+        )
+      }
   }
 
   func testGraphRequestPOSTWithNonEmptyParameters() {
     [
       GraphRequest(graphPath: path, parameters: parameters, httpMethod: .post),
-      GraphRequest(graphPath: path, parameters: parameters, tokenString: nil, version: version, httpMethod: .post)
+      GraphRequest(graphPath: path, parameters: parameters, tokenString: nil, version: version, httpMethod: .post),
     ]
-    .forEach {
-      verifyRequest(
-        $0,
-        expectedGraphPath: path,
-        expectedParameters: parameters,
-        expectedTokenString: nil,
-        expectedVersion: version,
-        expectedMethod: .post
-      )
-    }
+      .forEach {
+        GraphRequestTests.verifyRequest(
+          $0,
+          expectedGraphPath: path,
+          expectedParameters: parameters,
+          expectedTokenString: nil,
+          expectedVersion: version,
+          expectedMethod: .post
+        )
+      }
   }
 
-  func testSerializeURL() {
-    let baseURL = InternalUtility.shared.facebookURL(
+  func testGraphRequestIsForFetchingDomainConfiguration() {
+    let graphRequestFactory = GraphRequestFactory()
+    guard let appID = settings.appID else {
+      XCTFail("Should have an app id")
+      return
+    }
+    let parameters = ["fields": ""]
+    let domainConfigRequest1 = graphRequestFactory.createGraphRequest(
+      withGraphPath: "\(appID)/server_domain_infos",
+      parameters: parameters,
+      tokenString: nil,
+      httpMethod: nil,
+      flags: [.skipClientToken, .disableErrorRecovery]
+    )
+    XCTAssertTrue(
+      GraphRequest.isForFetchingDomainConfiguration(request: domainConfigRequest1),
+      "Request is for fetching the domain configuration"
+    )
+
+    let domainConfigRequest2 = GraphRequest(graphPath: "\(appID)/server_domain_infos", parameters: parameters, httpMethod: .get)
+    XCTAssertTrue(
+      GraphRequest.isForFetchingDomainConfiguration(request: domainConfigRequest2),
+      "Request is for fetching the domain configuration"
+    )
+
+    let failingRequest1 = GraphRequest(graphPath: appID, parameters: [:], httpMethod: .get)
+    XCTAssertFalse(
+      GraphRequest.isForFetchingDomainConfiguration(request: failingRequest1),
+      "Request is not for fetching the domain configuration. The parameters are wrong"
+    )
+
+    let failingRequest2 = GraphRequest(graphPath: appID, parameters: parameters, httpMethod: .post)
+    XCTAssertFalse(
+      GraphRequest.isForFetchingDomainConfiguration(request: failingRequest2),
+      "Request is not for fetching the domain configuration. The HTTP Method is wrong"
+    )
+
+    let failingRequest3 = GraphRequest(graphPath: "", parameters: parameters, httpMethod: .get)
+    XCTAssertFalse(
+      GraphRequest.isForFetchingDomainConfiguration(request: failingRequest3),
+      "Request is not for fetching the domain configuration. The graph path is wrong"
+    )
+
+    let failingRequest4 = GraphRequest(graphPath: appID, parameters: ["fields": "test_field"], httpMethod: .get)
+    XCTAssertFalse(
+      GraphRequest.isForFetchingDomainConfiguration(request: failingRequest4),
+      "Request is not for fetching the domain configuration. The parameters are wrong"
+    )
+
+    let failingRequest5 = GraphRequest(
+      graphPath: "\(appID)/server_domain_infos",
+      parameters: ["fields": "test_field,name,app_events_feature_bitmask"],
+      httpMethod: .get
+    )
+    XCTAssertFalse(
+      GraphRequest.isForFetchingDomainConfiguration(request: failingRequest5),
+      "Request is not for fetching the domain configuration. The parameters are wrong"
+    )
+  }
+
+  func testGraphRequestIsForDomainReport() {
+    let graphRequestFactory = GraphRequestFactory()
+    guard let appID = settings.appID else {
+      XCTFail("Should have an app id")
+      return
+    }
+    let parameters = ["tracking_domains": [""]]
+    let domainReportRequest1 = graphRequestFactory.createGraphRequest(
+      withGraphPath: "\(appID)/domain_reports",
+      parameters: parameters,
+      tokenString: nil,
+      httpMethod: .post,
+      flags: [.skipClientToken, .disableErrorRecovery]
+    )
+    XCTAssertTrue(
+      GraphRequest.isForDomainReport(request: domainReportRequest1),
+      "Request is for reporting domains"
+    )
+
+    let domainReportRequest2 = GraphRequest(graphPath: "\(appID)/domain_reports", parameters: parameters, httpMethod: .post)
+    XCTAssertTrue(
+      GraphRequest.isForDomainReport(request: domainReportRequest2),
+      "Request is for reporting domains"
+    )
+
+    let failingRequest1 = GraphRequest(graphPath: appID, parameters: [:], httpMethod: .post)
+    XCTAssertFalse(
+      GraphRequest.isForDomainReport(request: failingRequest1),
+      "Request is not for reporting domains. The parameters are wrong"
+    )
+
+    let failingRequest2 = GraphRequest(graphPath: appID, parameters: parameters, httpMethod: .get)
+    XCTAssertFalse(
+      GraphRequest.isForDomainReport(request: failingRequest2),
+      "Request is not for reporting domains. The HTTP Method is wrong"
+    )
+
+    let failingRequest3 = GraphRequest(graphPath: "", parameters: parameters, httpMethod: .post)
+    XCTAssertFalse(
+      GraphRequest.isForDomainReport(request: failingRequest3),
+      "Request is not for reporting domains. The graph path is wrong"
+    )
+
+    let failingRequest4 = GraphRequest(graphPath: appID, parameters: ["fields": "test_field"], httpMethod: .get)
+    XCTAssertFalse(
+      GraphRequest.isForDomainReport(request: failingRequest4),
+      "Request is not for reporting domains. The parameters are wrong"
+    )
+
+    let failingRequest5 = GraphRequest(
+      graphPath: "\(appID)/domain_reports",
+      parameters: ["fields": "test_field"],
+      httpMethod: .post
+    )
+    XCTAssertFalse(
+      GraphRequest.isForDomainReport(request: failingRequest5),
+      "Request is not for reporting domains. The parameters are wrong"
+    )
+  }
+
+  func testSerializeURL() throws {
+    let baseURL = try InternalUtility.shared.facebookURL(
       withHostPrefix: prefix,
       path: path,
       queryParameters: [:],
-      defaultVersion: version,
-      error: nil
+      defaultVersion: version
     )
     let url = GraphRequest.serializeURL(
       baseURL.absoluteString,
@@ -282,7 +637,7 @@ final class GraphRequestTests: XCTestCase {
 
   func testSetSettingsWithCertainVersion() {
     let testVersion = "v123"
-    settings.stubbedGraphAPIVersion = testVersion
+    settings.graphAPIVersion = testVersion
     let request = GraphRequest(graphPath: path)
     XCTAssertEqual(request.version, testVersion)
   }
@@ -293,15 +648,14 @@ final class GraphRequestTests: XCTestCase {
     XCTAssertFalse(request.isGraphErrorRecoveryDisabled)
   }
 
-  func testSetSettingsWithDebugParamValue() {
+  func testSetSettingsWithDebugParamValue() throws {
     let debugParameter = "TestValue"
-    settings.graphAPIDebugParamValue = debugParameter
-    let baseURL = InternalUtility.shared.facebookURL(
+    settings.graphAPIDebugParameterValue = debugParameter
+    let baseURL = try InternalUtility.shared.facebookURL(
       withHostPrefix: prefix,
       path: path,
       queryParameters: [:],
-      defaultVersion: version,
-      error: nil
+      defaultVersion: version
     )
     let url = GraphRequest.serializeURL(
       baseURL.absoluteString,
@@ -321,13 +675,15 @@ final class GraphRequestTests: XCTestCase {
   // MARK: - Custom test assertions
 
   // swiftlint:disable:next function_parameter_count
-  func verifyRequest(
+  static func verifyRequest(
     _ request: GraphRequest,
     expectedGraphPath: String,
     expectedParameters: [String: String],
     expectedTokenString: String?,
     expectedVersion: String,
     expectedMethod: HTTPMethod,
+    expectedForAppEvents: Bool = false,
+    expectedUseAlternativeValue: Bool = true,
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
@@ -336,5 +692,7 @@ final class GraphRequestTests: XCTestCase {
     XCTAssertEqual(request.tokenString, expectedTokenString, file: file, line: line)
     XCTAssertEqual(request.version, expectedVersion, file: file, line: line)
     XCTAssertEqual(request.httpMethod, expectedMethod, file: file, line: line)
+    XCTAssertEqual(request.forAppEvents, expectedForAppEvents, file: file, line: line)
+    XCTAssertEqual(request.useAlternativeDefaultDomainPrefix, expectedUseAlternativeValue, file: file, line: line)
   }
 }

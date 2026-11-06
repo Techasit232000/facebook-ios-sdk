@@ -1,33 +1,21 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "FBSDKCrashObserver+Internal.h"
 
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
-#import "FBSDKCrashShield.h"
 #import "FBSDKFeatureChecking.h"
-#import "FBSDKFeatureManager+FeatureChecking.h"
 #import "FBSDKGraphRequestFactoryProtocol.h"
 #import "FBSDKGraphRequestHTTPMethod.h"
 #import "FBSDKGraphRequestProtocol.h"
-#import "FBSDKSettings+Internal.h"
-#import "FBSDKSettingsProtocol.h"
+#import "FBSDKInternalUtility+Internal.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -45,8 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
     frameworks = @[@"FBSDKCoreKit",
                    @"FBSDKLoginKit",
                    @"FBSDKShareKit",
-                   @"FBSDKGamingServicesKit",
-                   @"FBSDKTVOSKit"];
+                   @"FBSDKGamingServicesKit"];
     _featureChecker = featureChecker;
     _graphRequestFactory = graphRequestFactory;
     _settings = settings;
@@ -68,9 +55,15 @@ NS_ASSUME_NONNULL_BEGIN
   if (jsonData) {
     NSString *crashReports = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
 
+    NSMutableDictionary<NSString *, NSString *> *parameters = [NSMutableDictionary new];
+    [FBSDKTypeUtility dictionary:parameters setObject:(crashReports ?: @"") forKey:@"crash_reports"];
+    [FBSDKInternalUtility.sharedUtility extendDictionaryWithDataProcessingOptions:parameters];
     id<FBSDKGraphRequest> request = [_graphRequestFactory createGraphRequestWithGraphPath:[NSString stringWithFormat:@"%@/instruments", [_settings appID]]
-                                                                               parameters:@{@"crash_reports" : crashReports ?: @""}
-                                                                               HTTPMethod:FBSDKHTTPMethodPOST];
+                                                                               parameters:parameters
+                                                                              tokenString:nil
+                                                                               HTTPMethod:FBSDKHTTPMethodPOST
+                                                                                    flags:FBSDKGraphRequestFlagNone
+                                                        useAlternativeDefaultDomainPrefix:NO];
 
     [request startWithCompletion:^(id<FBSDKGraphRequestConnecting> connection, id result, NSError *error) {
       if (!error && [result isKindOfClass:[NSDictionary<NSString *, id> class]] && result[@"success"]) {

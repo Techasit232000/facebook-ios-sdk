@@ -1,33 +1,21 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#if !os(tvOS)
-
-class SKAdNetworkConversionConfigurationTests: XCTestCase {
+final class SKAdNetworkConversionConfigurationTests: XCTestCase {
   func testInit() {
     // Init with nil
-    var config = SKAdNetworkConversionConfiguration(json: nil)
-    XCTAssertNil(config)
+    var configuration = SKAdNetworkConversionConfiguration(json: nil)
+    XCTAssertNil(configuration)
 
     // Init with invalid data
     var invalidData = [String: Any]()
-    config = SKAdNetworkConversionConfiguration(json: invalidData)
-    XCTAssertNil(config)
+    configuration = SKAdNetworkConversionConfiguration(json: invalidData)
+    XCTAssertNil(configuration)
 
     invalidData = [
       "data": [
@@ -35,12 +23,12 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
           "timer_buckets": 1,
           "timer_interval": 1000,
           "default_currency": "usd",
-          "cutoff_time": 2
-        ]
-      ]
+          "cutoff_time": 2,
+        ],
+      ],
     ]
-    config = SKAdNetworkConversionConfiguration(json: invalidData)
-    XCTAssertNil(config)
+    configuration = SKAdNetworkConversionConfiguration(json: invalidData)
+    XCTAssertNil(configuration)
 
     invalidData = [
       "data": [
@@ -48,12 +36,12 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
           "timer_buckets": 1,
           "timer_interval": 1000,
           "cutoff_time": 2,
-          "conversion_value_rules": []
-        ]
-      ]
+          "conversion_value_rules": [],
+        ],
+      ],
     ]
-    config = SKAdNetworkConversionConfiguration(json: invalidData)
-    XCTAssertNil(config)
+    configuration = SKAdNetworkConversionConfiguration(json: invalidData)
+    XCTAssertNil(configuration)
 
     // Init with valid data
     let validData = [
@@ -63,28 +51,32 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
           "timer_interval": 1000,
           "default_currency": "usd",
           "cutoff_time": 2,
-          "conversion_value_rules": []
-        ]
-      ]
+          "conversion_value_rules": [],
+          "lock_window_rules": [],
+          "coarse_cv_configs": [],
+          "is_coarse_cv_accumulative": false,
+        ],
+      ],
     ]
 
-    config = SKAdNetworkConversionConfiguration(json: validData)
-    XCTAssertNotNil(config)
-    XCTAssertEqual(1, config?.timerBuckets)
-    XCTAssertEqual(2, config?.cutoffTime)
-    XCTAssertEqual(config?.defaultCurrency, "USD")
-    XCTAssertEqual(1000, config?.timerInterval ?? 0, accuracy: 0.001)
+    configuration = SKAdNetworkConversionConfiguration(json: validData)
+    XCTAssertNotNil(configuration)
+    XCTAssertEqual(1, configuration?.timerBuckets)
+    XCTAssertEqual(2, configuration?.cutoffTime)
+    XCTAssertEqual(configuration?.defaultCurrency, "USD")
+    XCTAssertEqual(1000, configuration?.timerInterval ?? 0, accuracy: 0.001)
+    XCTAssertEqual(false, configuration?.isCoarseCVAccumulative)
   }
 
-  func testParseRules() throws { // swiftlint:disable:this function_body_length
+  func testParseRules() throws {
     let rules = [
       [
         "conversion_value": 2,
         "events": [
           [
-            "event_name": "fb_mobile_purchase"
-          ]
-        ]
+            "event_name": "fb_mobile_purchase",
+          ],
+        ],
       ],
       [
         "conversion_value": 4,
@@ -94,11 +86,11 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
             "values": [
               [
                 "currency": "USD",
-                "amount": 100
-              ]
-            ]
-          ]
-        ]
+                "amount": 100.0,
+              ],
+            ],
+          ],
+        ],
       ],
       [
         "conversion_value": 3,
@@ -108,16 +100,16 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
             "values": [
               [
                 "currency": "USD",
-                "amount": 100
+                "amount": 100.0,
               ],
               [
                 "currency": "JPY",
-                "amount": 100
-              ]
-            ]
-          ]
-        ]
-      ]
+                "amount": 100.0,
+              ],
+            ],
+          ],
+        ],
+      ],
     ]
 
     let conversionBitRules = try XCTUnwrap(SKAdNetworkConversionConfiguration.parseRules(rules))
@@ -132,11 +124,11 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
             "values": [
               [
                 "currency": "USD",
-                "amount": 100
-              ]
-            ]
-          ]
-        ]
+                "amount": 100.0,
+              ],
+            ],
+          ],
+        ],
       ])
     ))
 
@@ -149,15 +141,15 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
             "values": [
               [
                 "currency": "USD",
-                "amount": 100,
+                "amount": 100.0,
               ],
               [
                 "currency": "JPY",
-                "amount": 100,
-              ]
-            ]
-          ]
-        ]
+                "amount": 100.0,
+              ],
+            ],
+          ],
+        ],
       ])
     ))
 
@@ -166,9 +158,9 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
         "conversion_value": 2,
         "events": [
           [
-            "event_name": "fb_mobile_purchase"
-          ]
-        ]
+            "event_name": "fb_mobile_purchase",
+          ],
+        ],
       ])
     ))
 
@@ -193,11 +185,11 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
             "event_name": "fb_mobile_purchase",
             "values": [
               [
-                "amount": 100
-              ]
-            ]
-          ]
-        ]
+                "amount": 100.0,
+              ],
+            ],
+          ],
+        ],
       ],
       [
         "conversion_value": 3,
@@ -207,30 +199,30 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
             "values": [
               [
                 "currency": "USD",
-                "amount": 100
-              ]
-            ]
-          ]
-        ]
-      ]
+                "amount": 100.0,
+              ],
+            ],
+          ],
+        ],
+      ],
     ]
     XCTAssertEqual(1, SKAdNetworkConversionConfiguration.parseRules(invalidData)?.count)
   }
 
   func testParseShuffledRules() throws {
     let data: NSMutableArray = []
-    for conv in 0...10 {
+    for conv in 0 ... 10 {
       data.add([
         "conversion_value": conv,
         "events": [
           [
-            "event_name": "fb_mobile_purchase"
-          ]
-        ]
+            "event_name": "fb_mobile_purchase",
+          ],
+        ],
       ])
     }
-    let expectedConvs = [Int](0...10)
-    for _ in 0...1000 {
+    let expectedConvs = [Int](0 ... 10)
+    for _ in 0 ... 1000 {
       let res = try XCTUnwrap(SKAdNetworkConversionConfiguration.parseRules(data.shuffled()))
       var convs: [Int] = []
       for item in res {
@@ -253,9 +245,9 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
               "conversion_value": 2,
               "events": [
                 [
-                  "event_name": "fb_mobile_purchase"
-                ]
-              ]
+                  "event_name": "fb_mobile_purchase",
+                ],
+              ],
             ],
             [
               "conversion_value": 4,
@@ -265,18 +257,18 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
                   "values": [
                     [
                       "currency": "USD",
-                      "amount": 100
-                    ]
-                  ]
+                      "amount": 100.0,
+                    ],
+                  ],
                 ],
                 [
                   "event_name": "fb_mobile_complete_registration",
                   "values": [
                     [
                       "currency": "EU",
-                      "amount": 100
-                    ]
-                  ]
+                      "amount": 100.0,
+                    ],
+                  ],
                 ],
               ],
             ],
@@ -288,27 +280,90 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
                   "values": [
                     [
                       "currency": "USD",
-                      "amount": 100
+                      "amount": 100.0,
                     ],
                     [
                       "currency": "JPY",
-                      "amount": 100
-                    ]
-                  ]
+                      "amount": 100.0,
+                    ],
+                  ],
                 ],
                 [
                   "event_name": "fb_mobile_search",
-                ]
+                ],
               ],
             ],
-          ]
-        ]
-      ]
+          ],
+        ],
+      ],
     ]
 
-    let config = SKAdNetworkConversionConfiguration(json: data)
+    let configuration = SKAdNetworkConversionConfiguration(json: data)
     let expected = Set(["fb_mobile_search", "fb_mobile_purchase", "fb_mobile_complete_registration"])
-    XCTAssertEqual(config?.eventSet, expected)
+    XCTAssertEqual(configuration?.eventSet, expected)
+  }
+
+  func testEventSetWithCoraseValueSetup() {
+    let data: [String: Any] = [
+      "data": [
+        [
+          "timer_buckets": 1,
+          "timer_interval": 1000,
+          "cutoff_time": 2,
+          "default_currency": "usd",
+          "conversion_value_rules": [
+            [
+              "conversion_value": 3,
+              "events": [
+                [
+                  "event_name": "fb_mobile_purchase",
+                ],
+              ],
+            ],
+          ],
+          "coarse_cv_configs": [
+            [
+              "postback_sequence_index": 1,
+              "coarse_cv_rules": [
+                [
+                  "coarse_cv_value": "high",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_add_to_cart",
+                    ],
+                  ],
+                ],
+                [
+                  "coarse_cv_value": "medium",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_level_up",
+                    ],
+                  ],
+                ],
+              ],
+            ],
+            [
+              "postback_sequence_index": 2,
+              "coarse_cv_rules": [
+                [
+                  "coarse_cv_value": "low",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_content_view",
+                    ],
+                  ],
+                ],
+              ],
+            ],
+          ],
+        ],
+      ],
+    ]
+
+    let configuration = SKAdNetworkConversionConfiguration(json: data)
+    let expected = Set(["fb_mobile_add_to_cart", "fb_mobile_level_up", "fb_mobile_content_view"])
+    XCTAssertEqual(configuration?.coarseEventSet, expected)
   }
 
   func testCurrencySet() {
@@ -325,7 +380,7 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
               "events": [
                 [
                   "event_name": "fb_mobile_purchase",
-                ]
+                ],
               ],
             ],
             [
@@ -336,18 +391,18 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
                   "values": [
                     [
                       "currency": "USD",
-                      "amount": 100
-                    ]
-                  ]
+                      "amount": 100.0,
+                    ],
+                  ],
                 ],
                 [
                   "event_name": "fb_mobile_complete_registration",
                   "values": [
                     [
                       "currency": "eu",
-                      "amount": 100
-                    ]
-                  ]
+                      "amount": 100.0,
+                    ],
+                  ],
                 ],
               ],
             ],
@@ -358,29 +413,256 @@ class SKAdNetworkConversionConfigurationTests: XCTestCase {
                   "event_name": "fb_mobile_purchase",
                   "values": [
                     [
-                      "currency": "usd",
-                      "amount": 100
-                    ],
-                    [
                       "currency": "jpy",
-                      "amount": 100
-                    ]
-                  ]
+                      "amount": 100.0,
+                    ],
+                  ],
                 ],
-                [
-                  "event_name": "fb_mobile_search",
-                ]
               ],
             ],
-          ]
-        ]
-      ]
+          ],
+        ],
+      ],
     ]
 
-    let config = SKAdNetworkConversionConfiguration(json: data)
+    let configuration = SKAdNetworkConversionConfiguration(json: data)
     let expected = Set(["USD", "EU", "JPY"])
-    XCTAssertEqual(config?.currencySet, expected)
+    XCTAssertEqual(configuration?.currencySet, expected)
+  }
+
+  func testCurrencySetWithCoarseValueSetup() {
+    let data: [String: Any] = [
+      "data": [
+        [
+          "timer_buckets": 1,
+          "timer_interval": 1000,
+          "cutoff_time": 2,
+          "default_currency": "usd",
+          "conversion_value_rules": [
+            [
+              "conversion_value": 4,
+              "events": [
+                [
+                  "event_name": "fb_mobile_purchase",
+                  "values": [
+                    [
+                      "currency": "USD",
+                      "amount": 100.0,
+                    ],
+                  ],
+                ],
+              ],
+            ],
+          ],
+          "coarse_cv_configs": [
+            [
+              "postback_sequence_index": 1,
+              "coarse_cv_rules": [
+                [
+                  "coarse_cv_value": "high",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_purchase",
+                      "values": [
+                        [
+                          "currency": "eur",
+                          "amount": 100.0,
+                        ],
+                      ],
+                    ],
+                  ],
+                ],
+                [
+                  "coarse_cv_value": "medium",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_search",
+                      "values": [
+                        [
+                          "currency": "sgd",
+                          "amount": 100.0,
+                        ],
+                      ],
+                    ],
+                  ],
+                ],
+              ],
+            ],
+            [
+              "postback_sequence_index": 2,
+              "coarse_cv_rules": [
+                [
+                  "coarse_cv_value": "low",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_level_up",
+                      "values": [
+                        [
+                          "currency": "gbp",
+                          "amount": 100.0,
+                        ],
+                      ],
+                    ],
+                  ],
+                ],
+              ],
+            ],
+          ],
+        ],
+      ],
+    ]
+
+    let configuration = SKAdNetworkConversionConfiguration(json: data)
+    let expected = Set(["EUR", "GBP", "SGD"])
+    XCTAssertEqual(configuration?.coarseCurrencySet, expected)
+  }
+
+  func testLockWindowRules() {
+    let timeData: [String: Any] = [
+      "data": [
+        [
+          "timer_buckets": 1,
+          "timer_interval": 1000,
+          "default_currency": "usd",
+          "cutoff_time": 2,
+          "conversion_value_rules": [],
+          "lock_window_rules": [
+            [
+              "lock_window_type": "time",
+              "time": 36,
+              "postback_sequence_index": 1,
+            ],
+            [
+              "lock_window_type": "time",
+              "time": 68,
+              "postback_sequence_index": 2,
+            ],
+          ],
+        ],
+      ],
+    ]
+
+    let timeConfiguration = SKAdNetworkConversionConfiguration(json: timeData)
+    XCTAssertEqual(timeConfiguration?.lockWindowRules?.count, 2)
+    XCTAssertEqual(timeConfiguration?.lockWindowRules?[0].lockWindowType, "time")
+    XCTAssertEqual(timeConfiguration?.lockWindowRules?[0].time, 36)
+    XCTAssertEqual(timeConfiguration?.lockWindowRules?[0].postbackSequenceIndex, 1)
+    XCTAssertEqual(timeConfiguration?.lockWindowRules?[1].time, 68)
+    XCTAssertEqual(timeConfiguration?.lockWindowRules?[1].postbackSequenceIndex, 2)
+
+    let eventsData: [String: Any] = [
+      "data": [
+        [
+          "timer_buckets": 1,
+          "timer_interval": 1000,
+          "default_currency": "usd",
+          "cutoff_time": 2,
+          "conversion_value_rules": [],
+          "lock_window_rules": [
+            [
+              "lock_window_type": "event",
+              "events": [
+                [
+                  "event_name": "fb_mobile_purchase",
+                  "values": [
+                    [
+                      "currency": "usd",
+                      "amount": 100.0,
+                    ],
+                  ],
+                ],
+                [
+                  "event_name": "fb_mobile_complete_registration",
+                ],
+              ],
+              "postback_sequence_index": 1,
+            ],
+          ],
+        ],
+      ],
+    ]
+
+    let eventsConfiguration = SKAdNetworkConversionConfiguration(json: eventsData)
+    XCTAssertEqual(eventsConfiguration?.lockWindowRules?[0].lockWindowType, "event")
+    XCTAssertEqual(eventsConfiguration?.lockWindowRules?[0].postbackSequenceIndex, 1)
+    XCTAssertEqual(eventsConfiguration?.lockWindowRules?[0].events.count, 2)
+    XCTAssertEqual(eventsConfiguration?.lockWindowRules?[0].events[0].eventName, "fb_mobile_purchase")
+    XCTAssertEqual(eventsConfiguration?.lockWindowRules?[0].events[1].eventName, "fb_mobile_complete_registration")
+  }
+
+  func testCoraseCvConfigs() {
+    let data: [String: Any] = [
+      "data": [
+        [
+          "timer_buckets": 1,
+          "timer_interval": 1000,
+          "default_currency": "usd",
+          "cutoff_time": 2,
+          "conversion_value_rules": [],
+          "coarse_cv_configs": [
+            [
+              "postback_sequence_index": 1,
+              "coarse_cv_rules": [
+                [
+                  "coarse_cv_value": "high",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_purchase",
+                      "values": [
+                        [
+                          "currency": "usd",
+                          "amount": 100.0,
+                        ],
+                      ],
+                    ],
+                    [
+                      "event_name": "fb_mobile_search",
+                    ],
+                  ],
+                ],
+                [
+                  "coarse_cv_value": "medium",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_purchase",
+                    ],
+                    [
+                      "event_name": "fb_mobile_search",
+                    ],
+                  ],
+                ],
+              ],
+            ],
+            [
+              "postback_sequence_index": 2,
+              "coarse_cv_rules": [
+                [
+                  "coarse_cv_value": "low",
+                  "events": [
+                    [
+                      "event_name": "fb_mobile_level_up",
+                    ],
+                  ],
+                ],
+              ],
+            ],
+          ],
+        ],
+      ],
+    ]
+
+    let configuration = SKAdNetworkConversionConfiguration(json: data)
+    XCTAssertEqual(configuration?.coarseCvConfigs?.count, 2)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[0].postbackSequenceIndex, 1)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[0].cvRules.count, 2)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[0].cvRules[0].coarseCvValue, "high")
+    XCTAssertEqual(configuration?.coarseCvConfigs?[0].cvRules[0].events.count, 2)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[0].cvRules[0].events[0].eventName, "fb_mobile_purchase")
+    XCTAssertEqual(configuration?.coarseCvConfigs?[0].cvRules[0].events[1].eventName, "fb_mobile_search")
+    XCTAssertEqual(configuration?.coarseCvConfigs?[1].postbackSequenceIndex, 2)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[1].cvRules.count, 1)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[1].cvRules[0].coarseCvValue, "low")
+    XCTAssertEqual(configuration?.coarseCvConfigs?[1].cvRules[0].events.count, 1)
+    XCTAssertEqual(configuration?.coarseCvConfigs?[1].cvRules[0].events[0].eventName, "fb_mobile_level_up")
   }
 }
-
-#endif

@@ -1,40 +1,26 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKButton.h"
-#import "FBSDKButton+Subclass.h"
+#import "FBSDKButton+Internal.h"
 
-#import "FBSDKAccessToken.h"
-#import "FBSDKAccessToken+AccessTokenProtocols.h"
-#import "FBSDKAppEvents+Internal.h"
 #import "FBSDKApplicationLifecycleNotifications.h"
-#import "FBSDKLogo.h"
-#import "FBSDKViewImpressionTracker.h"
-#import "NSNotificationCenter+Extensions.h"
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 
 #define HEIGHT_TO_FONT_SIZE 0.47
 #define HEIGHT_TO_MARGIN 0.27
 #define HEIGHT_TO_PADDING 0.23
 #define HEIGHT_TO_TEXT_PADDING_CORRECTION 0.08
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 @interface FBSDKButton ()
 
-@property (class, nonatomic) id applicationActivationNotifier;
 @property (nonatomic) BOOL skipIntrinsicContentSizing;
 @property (nonatomic) BOOL isExplicitlyDisabled;
 
@@ -43,16 +29,57 @@
 @implementation FBSDKButton
 
 static id _applicationActivationNotifier;
+static id<FBSDKEventLogging> _eventLogger;
+static Class<FBSDKAccessTokenProviding> _accessTokenProvider;
 
-+ (id)applicationActivationNotifier
++ (nullable id)applicationActivationNotifier
 {
   return _applicationActivationNotifier;
 }
 
-+ (void)setApplicationActivationNotifier:(id)notifier
++ (void)setApplicationActivationNotifier:(nullable id)applicationActivationNotifier
 {
-  _applicationActivationNotifier = notifier;
+  _applicationActivationNotifier = applicationActivationNotifier;
 }
+
++ (nullable id<FBSDKEventLogging>)eventLogger
+{
+  return _eventLogger;
+}
+
++ (void)setEventLogger:(nullable id<FBSDKEventLogging>)eventLogger
+{
+  _eventLogger = eventLogger;
+}
+
++ (nullable Class<FBSDKAccessTokenProviding>)accessTokenProvider
+{
+  return _accessTokenProvider;
+}
+
++ (void)setAccessTokenProvider:(nullable Class<FBSDKAccessTokenProviding>)accessTokenProvider
+{
+  _accessTokenProvider = accessTokenProvider;
+}
+
++ (void)configureWithApplicationActivationNotifier:(id)applicationActivationNotifier
+                                       eventLogger:(id<FBSDKEventLogging>)eventLogger
+                               accessTokenProvider:(Class<FBSDKAccessTokenProviding>)accessTokenProvider
+{
+  self.applicationActivationNotifier = applicationActivationNotifier;
+  self.eventLogger = eventLogger;
+  self.accessTokenProvider = accessTokenProvider;
+}
+
+#if DEBUG
++ (void)resetClassDependencies
+{
+  self.applicationActivationNotifier = nil;
+  self.eventLogger = nil;
+  self.accessTokenProvider = nil;
+}
+
+#endif
 
 #pragma mark - Object Lifecycle
 
@@ -90,17 +117,6 @@ static id _applicationActivationNotifier;
 
 #pragma mark - Layout
 
-- (CGRect)imageRectForContentRect:(CGRect)contentRect
-{
-  if (self.hidden || CGRectIsEmpty(self.bounds)) {
-    return CGRectZero;
-  }
-  CGRect imageRect = UIEdgeInsetsInsetRect(contentRect, self.imageEdgeInsets);
-  CGFloat margin = [self _marginForHeight:[self _heightForContentRect:contentRect]];
-  imageRect = CGRectInset(imageRect, margin, margin);
-  imageRect.size.width = CGRectGetHeight(imageRect);
-  return imageRect;
-}
 
 - (CGSize)intrinsicContentSize
 {
@@ -130,45 +146,16 @@ static id _applicationActivationNotifier;
   self.bounds = bounds;
 }
 
-- (CGRect)titleRectForContentRect:(CGRect)contentRect
-{
-  if (self.hidden || CGRectIsEmpty(self.bounds)) {
-    return CGRectZero;
-  }
-  CGRect imageRect = [self imageRectForContentRect:contentRect];
-  CGFloat height = [self _heightForContentRect:contentRect];
-  CGFloat padding = [self _paddingForHeight:height];
-  CGFloat titleX = CGRectGetMaxX(imageRect) + padding;
-  CGRect titleRect = CGRectMake(titleX, 0.0, CGRectGetWidth(contentRect) - titleX, CGRectGetHeight(contentRect));
-
-  UIEdgeInsets titleEdgeInsets = UIEdgeInsetsZero;
-  if (!self.layer.needsLayout) {
-    UILabel *titleLabel = self.titleLabel;
-    if (titleLabel.textAlignment == NSTextAlignmentCenter) {
-      // if the text is centered, we need to adjust the frame for the titleLabel based on the size of the text in order
-      // to keep the text centered in the button without adding extra blank space to the right when unnecessary
-      // 1. the text fits centered within the button without colliding with the image (imagePaddingWidth)
-      // 2. the text would run into the image, so adjust the insets to effectively left align it (textPaddingWidth)
-      CGSize titleSize = [self textSizeForText:titleLabel.text font:titleLabel.font constrainedSize:titleRect.size lineBreakMode:titleLabel.lineBreakMode];
-      CGFloat titlePaddingWidth = (CGRectGetWidth(titleRect) - titleSize.width) / 2;
-      CGFloat imagePaddingWidth = titleX / 2;
-      CGFloat inset = MIN(titlePaddingWidth, imagePaddingWidth);
-      titleEdgeInsets.left -= inset;
-      titleEdgeInsets.right += inset;
-    }
-  }
-  return UIEdgeInsetsInsetRect(titleRect, titleEdgeInsets);
-}
 
 #pragma mark - Subclass Methods
 
-- (void)logTapEventWithEventName:(NSString *)eventName
-                      parameters:(nullable NSDictionary<NSString *, id> *)parameters
+- (void)logTapEventWithEventName:(FBSDKAppEventName)eventName
+                      parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
 {
-  [FBSDKAppEvents logInternalEvent:eventName
-                        parameters:parameters
-                isImplicitlyLogged:YES
-                       accessToken:[FBSDKAccessToken currentAccessToken]];
+  [self.class.eventLogger logInternalEvent:eventName
+                                parameters:parameters
+                        isImplicitlyLogged:YES
+                               accessToken:[self.class.accessTokenProvider currentAccessToken]];
 }
 
 - (void)checkImplicitlyDisabled
@@ -306,7 +293,6 @@ static id _applicationActivationNotifier;
   return CGSizeMake(ceilf(size.width), ceilf(size.height));
 }
 
-#pragma mark - Helper Methods
 - (void)_applicationDidBecomeActiveNotification:(NSNotification *)notification
 {
   [self checkImplicitlyDisabled];
@@ -333,12 +319,7 @@ static id _applicationActivationNotifier;
   CGContextFillPath(context);
   UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
   UIGraphicsEndImageContext();
-#if TARGET_OS_TV
-  return [image resizableImageWithCapInsets:UIEdgeInsetsMake(cornerRadius, cornerRadius, cornerRadius, cornerRadius)
-                               resizingMode:UIImageResizingModeStretch];
-#else
   return [image stretchableImageWithLeftCapWidth:cornerRadius topCapHeight:cornerRadius];
-#endif
 }
 
 - (void)_configureWithIcon:(FBSDKIcon *)icon
@@ -379,14 +360,11 @@ static id _applicationActivationNotifier;
 
   BOOL forceSizeToFit = CGRectIsEmpty(self.bounds);
 
-  CGFloat scale = [UIScreen mainScreen].scale;
+  CGFloat scale = UIScreen.mainScreen.scale;
   UIImage *backgroundImage;
 
   backgroundImage = [self _backgroundImageWithColor:backgroundColor cornerRadius:3.0 scale:scale];
   [self setBackgroundImage:backgroundImage forState:UIControlStateNormal];
-#if TARGET_OS_TV
-  [self setBackgroundImage:backgroundImage forState:UIControlStateFocused];
-#endif
 
   backgroundImage = [self _backgroundImageWithColor:highlightedColor cornerRadius:3.0 scale:scale];
   [self setBackgroundImage:backgroundImage forState:UIControlStateHighlighted];
@@ -402,24 +380,15 @@ static id _applicationActivationNotifier;
   if (selectedHighlightedColor) {
     backgroundImage = [self _backgroundImageWithColor:selectedHighlightedColor cornerRadius:3.0 scale:scale];
     [self setBackgroundImage:backgroundImage forState:UIControlStateSelected | UIControlStateHighlighted];
-  #if TARGET_OS_TV
-    [self setBackgroundImage:backgroundImage forState:UIControlStateSelected | UIControlStateFocused];
-  #endif
   }
 
   [self setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
   [self setTitleColor:[self highlightedContentColor] forState:UIControlStateHighlighted | UIControlStateSelected];
 
   [self setTitle:title forState:UIControlStateNormal];
-#if TARGET_OS_TV
-  [self setTitle:title forState:UIControlStateFocused];
-#endif
   if (selectedTitle) {
     [self setTitle:selectedTitle forState:UIControlStateSelected];
     [self setTitle:selectedTitle forState:UIControlStateSelected | UIControlStateHighlighted];
-  #if TARGET_OS_TV
-    [self setTitle:selectedTitle forState:UIControlStateSelected | UIControlStateFocused];
-  #endif
   }
 
   UILabel *titleLabel = self.titleLabel;
@@ -431,9 +400,6 @@ static id _applicationActivationNotifier;
   UIImage *image = [icon imageWithSize:imageSize];
   image = [image resizableImageWithCapInsets:UIEdgeInsetsZero resizingMode:UIImageResizingModeStretch];
   [self setImage:image forState:UIControlStateNormal];
-#if TARGET_OS_TV
-  [self setImage:image forState:UIControlStateFocused];
-#endif
 
   if (selectedIcon) {
     UIImage *selectedImage = [selectedIcon imageWithSize:imageSize];
@@ -441,9 +407,6 @@ static id _applicationActivationNotifier;
                                                   resizingMode:UIImageResizingModeStretch];
     [self setImage:selectedImage forState:UIControlStateSelected];
     [self setImage:selectedImage forState:UIControlStateSelected | UIControlStateHighlighted];
-  #if TARGET_OS_TV
-    [self setImage:selectedImage forState:UIControlStateSelected | UIControlStateFocused];
-  #endif
   }
 
   if (forceSizeToFit) {
@@ -485,5 +448,7 @@ static id _applicationActivationNotifier;
 {
   return floorf(height * HEIGHT_TO_TEXT_PADDING_CORRECTION);
 }
+
+#pragma clang diagnostic pop
 
 @end

@@ -1,25 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+@testable import FBSDKCoreKit
 
 import TestTools
 import XCTest
 
-class FeatureExtractorTests: XCTestCase {
+final class FeatureExtractorTests: XCTestCase {
   var rules: [String: Any] = [:]
   let viewHierarchy: [String: Any] = [
     "screenname": "UITabBarController",
@@ -47,7 +39,7 @@ class FeatureExtractorTests: XCTestCase {
                           [
                             "classname": "UILabel",
                             "classtypebitmask": "1024",
-                            "text": "Order Summary"
+                            "text": "Order Summary",
                           ],
                           [
                             "classname": "UIStackView",
@@ -55,18 +47,18 @@ class FeatureExtractorTests: XCTestCase {
                             "childviews": [
                               [
                                 "classname": "UIView",
-                                "classtypebitmask": "0"
+                                "classtypebitmask": "0",
                               ],
                               [
                                 "classname": "UILabel",
                                 "classtypebitmask": "1024",
-                                "text": "Coffee 5"
+                                "text": "Coffee 5",
                               ],
                               [
                                 "classname": "UILabel",
-                                "classtypebitmask": "Price: $5.99"
-                              ]
-                            ]
+                                "classtypebitmask": "Price: $5.99",
+                              ],
+                            ],
                           ],
                           [
                             "classname": "UIStackView",
@@ -74,64 +66,64 @@ class FeatureExtractorTests: XCTestCase {
                             "childviews": [
                               [
                                 "classname": "UIView",
-                                "classtypebitmask": "0"
+                                "classtypebitmask": "0",
                               ],
                               [
                                 "classname": "UILabel",
                                 "classtypebitmask": "1024",
-                                "text": "Quantity"
+                                "text": "Quantity",
                               ],
                               [
                                 "classname": "UILabel",
-                                "classtypebitmask": "1"
-                              ]
-                            ]
+                                "classtypebitmask": "1",
+                              ],
+                            ],
                           ],
                           [
                             "classname": "UITextField",
                             "classtypebitmask": "2056",
-                            "hint": "Credit Card Credit Card"
+                            "hint": "Credit Card Credit Card",
                           ],
                           [
                             "classname": "UITextField",
                             "classtypebitmask": "2056",
-                            "hint": "Shipping Address Shipping Address"
+                            "hint": "Shipping Address Shipping Address",
                           ],
                           [
                             "classname": "UIButton",
                             "classtypebitmask": "24",
                             "is_interacted": 1,
-                            "hint": "Confirm Order"
-                          ]
-                        ]
-                      ]
-                    ]
-                  ]
-                ]
+                            "hint": "Confirm Order",
+                          ],
+                        ],
+                      ],
+                    ],
+                  ],
+                ],
               ],
               [
                 "classname": "UITabBar",
-                "classtypebitmask": "0"
-              ]
-            ]
-          ]
-        ]
-      ]
-    ]
+                "classtypebitmask": "0",
+              ],
+            ],
+          ],
+        ],
+      ],
+    ],
   ]
 
   let interactedNode: [String: Any] = [
     "classname": "UIButton",
     "classtypebitmask": "24",
     "is_interacted": 1,
-    "hint": "Confirm Order"
+    "hint": "Confirm Order",
   ]
 
   let siblings = [
     [
       "classname": "UILabel",
       "classtypebitmask": "1024",
-      "text": "Order Summary"
+      "text": "Order Summary",
     ],
     [
       "classname": "UIStackView",
@@ -139,18 +131,18 @@ class FeatureExtractorTests: XCTestCase {
       "childviews": [
         [
           "classname": "UIView",
-          "classtypebitmask": "0"
+          "classtypebitmask": "0",
         ],
         [
           "classname": "UILabel",
           "classtypebitmask": "1024",
-          "text": "Coffee 5"
+          "text": "Coffee 5",
         ],
         [
           "classname": "UILabel",
-          "classtypebitmask": "Price: $5.99"
-        ]
-      ]
+          "classtypebitmask": "Price: $5.99",
+        ],
+      ],
     ],
     [
       "classname": "UIStackView",
@@ -158,72 +150,72 @@ class FeatureExtractorTests: XCTestCase {
       "childviews": [
         [
           "classname": "UIView",
-          "classtypebitmask": "0"
+          "classtypebitmask": "0",
         ],
         [
           "classname": "UILabel",
           "classtypebitmask": "1024",
-          "text": "Quantity"
+          "text": "Quantity",
         ],
         [
           "classname": "UILabel",
-          "classtypebitmask": "1"
-        ]
-      ]
+          "classtypebitmask": "1",
+        ],
+      ],
     ],
     [
       "classname": "UITextField",
       "classtypebitmask": "2056",
-      "hint": "Credit Card Credit Card"
+      "hint": "Credit Card Credit Card",
     ],
     [
       "classname": "UITextField",
       "classtypebitmask": "2056",
-      "hint": "Shipping Address Shipping Address"
+      "hint": "Shipping Address Shipping Address",
     ],
     [
       "classname": "UIButton",
       "classtypebitmask": "24",
       "is_interacted": 1,
-      "hint": "Confirm Order"
-    ]
+      "hint": "Confirm Order",
+    ],
   ]
 
   let modelManager = TestOnDeviceMLModelManager()
 
-  override func setUpWithError() throws { // swiftlint:disable:this overridden_super_call
+  override func setUpWithError() throws {
     super.setUp()
 
-    let bundle = Bundle(for: FeatureExtractorTests.self)
+    let bundle = Bundle(for: Self.self)
     let fileURL = bundle.path(
       forResource: "FBSDKTextClassifyRules",
       ofType: "json"
     ) ?? ""
     if !fileURL.isEmpty {
       let data = try XCTUnwrap(NSData(contentsOfFile: fileURL, options: .mappedIfSafe))
-      self.rules = try TypeUtility.jsonObject(
+      rules = try TypeUtility.jsonObject(
         with: data as Data
       ) as! [String: Any] // swiftlint:disable:this force_cast
     }
-    FeatureExtractor.configureWithRules(self.modelManager)
-    self.modelManager.rulesForKey = self.rules
+    _FeatureExtractor.configure(rulesFromKeyProvider: modelManager)
+    modelManager.rulesForKey = rules
 
-    FeatureExtractor.loadRules(forKey: "MTML")
+    _FeatureExtractor.loadRules(forKey: "MTML")
   }
 
   override func tearDown() {
     super.tearDown()
 
-    FeatureExtractor.reset()
+    _FeatureExtractor.reset()
   }
 
   func testGetDenseFeature() {
-    let denseFeature = FeatureExtractor.getDenseFeatures(
-      self.viewHierarchy
+    let denseFeature = _FeatureExtractor.getDenseFeatures(
+      viewHierarchy
     )! // swiftlint:disable:this force_unwrapping
 
     var denseFeatureArray: [Int] = []
-    for feature in 0..<30 {
+    for feature in 0 ..< 30 {
       denseFeatureArray.append(Int(denseFeature[feature]))
     }
     XCTAssertEqual(
@@ -233,16 +225,16 @@ class FeatureExtractorTests: XCTestCase {
   }
 
   func testGetDenseFeatureParsing() {
-    for _ in 0..<100 {
-      FeatureExtractor.getDenseFeatures(
-        Fuzzer.randomize(json: self.viewHierarchy) as! [String: Any] // swiftlint:disable:this force_cast
+    for _ in 0 ..< 100 {
+      _FeatureExtractor.getDenseFeatures(
+        Fuzzer.randomize(json: viewHierarchy) as! [String: Any] // swiftlint:disable:this force_cast
       )
     }
   }
 
   func testGetTextFeature() {
     XCTAssertEqual(
-      FeatureExtractor.getTextFeature(
+      _FeatureExtractor.getTextFeature(
         "Buy Buy Buy",
         withScreenName: "BuyPage"
       ),
@@ -252,10 +244,10 @@ class FeatureExtractorTests: XCTestCase {
   }
 
   func testPruneTree() {
-    let viewTree = self.viewHierarchy["view"] as! [[String: Any]] // swiftlint:disable:this force_cast
+    let viewTree = viewHierarchy["view"] as! [[String: Any]] // swiftlint:disable:this force_cast
     let siblings: NSMutableArray = []
     let node = (viewTree[0] as NSDictionary).mutableCopy() as! NSMutableDictionary // swiftlint:disable:this force_cast
-    FeatureExtractor.pruneTree(node, siblings: siblings)
+    _FeatureExtractor.pruneTree(node, siblings: siblings)
 
     XCTAssertEqual(self.siblings as NSArray, siblings as NSArray)
   }
@@ -263,7 +255,7 @@ class FeatureExtractorTests: XCTestCase {
   func testNonparseFeature() throws {
     let viewTreeString = try String(
       data: TypeUtility.data(
-        withJSONObject: self.viewHierarchy["view"] as Any,
+        withJSONObject: viewHierarchy["view"] as Any,
         options: .fragmentsAllowed
       ),
       encoding: .utf8
@@ -273,15 +265,15 @@ class FeatureExtractorTests: XCTestCase {
     let interactedNode = (self.interactedNode as NSDictionary).mutableCopy() as! NSMutableDictionary
     let siblings = (self.siblings as NSArray).mutableCopy() as! NSMutableArray // swiftlint:disable:this force_cast
 
-    let nonParseFeature = FeatureExtractor.nonparseFeatures(
+    let nonParseFeature = _FeatureExtractor.nonparseFeatures(
       interactedNode,
       siblings: siblings,
-      screenname: self.viewHierarchy["screenname"] as! String, // swiftlint:disable:this force_cast
+      screenname: viewHierarchy["screenname"] as! String, // swiftlint:disable:this force_cast
       viewTreeString: viewTreeString! as String // swiftlint:disable:this force_unwrapping
     )
 
     var nonParseFeatureArray: [Int] = []
-    for idx in 0..<30 {
+    for idx in 0 ..< 30 {
       nonParseFeatureArray.append(Int(nonParseFeature[idx]))
     }
     XCTAssertEqual(
@@ -291,12 +283,12 @@ class FeatureExtractorTests: XCTestCase {
   }
 
   func testParseFeature() {
-    let viewTree = self.viewHierarchy["view"] as! [[String: Any]] // swiftlint:disable:this force_cast
+    let viewTree = viewHierarchy["view"] as! [[String: Any]] // swiftlint:disable:this force_cast
     let node = (viewTree[0] as NSDictionary).mutableCopy() as! NSMutableDictionary // swiftlint:disable:this force_cast
-    let parseFeature = FeatureExtractor.parseFeatures(node)
+    let parseFeature = _FeatureExtractor.parseFeatures(node)
 
     var parseFeatureArray: [Int] = []
-    for idx in 0..<30 {
+    for idx in 0 ..< 30 {
       parseFeatureArray.append(Int(parseFeature[idx]))
     }
 
@@ -310,28 +302,28 @@ class FeatureExtractorTests: XCTestCase {
     let labelNode = [
       "classname": "UILabel",
       "classtypebitmask": "1024",
-      "text": "Coffee 5"
+      "text": "Coffee 5",
     ]
 
-    XCTAssertTrue(FeatureExtractor.isButton(self.interactedNode))
-    XCTAssertFalse(FeatureExtractor.isButton(labelNode))
+    XCTAssertTrue(_FeatureExtractor.isButton(interactedNode))
+    XCTAssertFalse(_FeatureExtractor.isButton(labelNode))
   }
 
   func testUpdateTextAndHint() {
     let buttonTextString = NSMutableString()
     let buttonHintString = NSMutableString()
 
-    FeatureExtractor.update(self.interactedNode, text: buttonTextString, hint: buttonHintString)
+    _FeatureExtractor.update(interactedNode, text: buttonTextString, hint: buttonHintString)
     XCTAssertEqual(buttonTextString, "")
     XCTAssertEqual(buttonHintString, "confirm order ")
   }
 
   func testFoundIndicators() {
-    let test1 = FeatureExtractor.foundIndicators(
+    let test1 = _FeatureExtractor.foundIndicators(
       ["phone", "tel"],
       inValues: ["your phone number", "111-111-1111"]
     )
-    let test2 = FeatureExtractor.foundIndicators(
+    let test2 = _FeatureExtractor.foundIndicators(
       ["phone", "tel"],
       inValues: ["your email", "test@fb.com"]
     )
@@ -341,8 +333,8 @@ class FeatureExtractorTests: XCTestCase {
   }
 
   func testRegextMatch() {
-    XCTAssertEqual(FeatureExtractor.regextMatch("(?i)(sign in)|login|signIn", text: "click to sign in"), 1.0)
+    XCTAssertEqual(_FeatureExtractor.regextMatch("(?i)(sign in)|login|signIn", text: "click to sign in"), 1.0)
 
-    XCTAssertEqual(FeatureExtractor.regextMatch("(?i)(sign in)|login|signIn", text: "click to sign up"), 0.0)
+    XCTAssertEqual(_FeatureExtractor.regextMatch("(?i)(sign in)|login|signIn", text: "click to sign up"), 0.0)
   }
 }

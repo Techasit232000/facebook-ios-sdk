@@ -1,28 +1,19 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "RPSFriendsViewController.h"
 
 #import <Foundation/Foundation.h>
 
-#import <FBSDKCoreKit/FBSDKCoreKit.h>
-#import <FBSDKLoginKit/FBSDKLoginKit.h>
-#import <FBSDKShareKit/FBSDKShareKit.h>
+@import FBSDKCoreKit;
+@import FBSDKGamingServicesKit;
+@import FBSDKLoginKit;
+@import FBSDKShareKit;
 
 @interface RPSFriendsViewController () <UIAlertViewDelegate, UITableViewDelegate, UITableViewDataSource>
 @end
@@ -52,7 +43,7 @@
 
   if (!_isPerformingLogin) {
     // Login with read permssions
-    FBSDKAccessToken *accessToken = [FBSDKAccessToken currentAccessToken];
+    FBSDKAccessToken *accessToken = FBSDKAccessToken.currentAccessToken;
     if (![accessToken.permissions containsObject:@"user_friends"]) {
       FBSDKLoginManager *loginManager = [[FBSDKLoginManager alloc] init];
       _isPerformingLogin = YES;
@@ -65,7 +56,7 @@
                                      return;
                                    }
 
-                                   FBSDKAccessToken *newToken = [FBSDKAccessToken currentAccessToken];
+                                   FBSDKAccessToken *newToken = FBSDKAccessToken.currentAccessToken;
                                    if (![newToken.permissions containsObject:@"user_friends"]) {
                                      // Show alert
                                      UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"Login Failed"
@@ -89,11 +80,9 @@
 
 - (IBAction)tapChallengeFriends:(id)sender
 {
-  FBSDKGameRequestDialog *gameRequestDialog = [[FBSDKGameRequestDialog alloc] init];
   FBSDKGameRequestContent *content = [[FBSDKGameRequestContent alloc] init];
-  content.title = @"Challenge a Friend";
   content.message = @"Please come play RPS with me!";
-  gameRequestDialog.content = content;
+  FBSDKGameRequestDialog *gameRequestDialog = [[FBSDKGameRequestDialog alloc] initWithContent:content delegate:nil];
   [gameRequestDialog show];
 }
 
@@ -151,7 +140,7 @@
                                                                         parameters:parameters];
   FBSDKGraphRequestConnection *connection = [[FBSDKGraphRequestConnection alloc] init];
   [connection addRequest:friendsRequest
-       completionHandler:^(FBSDKGraphRequestConnection *innerConnection, NSDictionary *result, NSError *error) {
+            completion:^(id<FBSDKGraphRequestConnecting> innerConnection, NSDictionary *result, NSError *error) {
          if (error) {
            NSLog(@"%@", error);
            return;
@@ -184,7 +173,7 @@
                                             }];
   ++pendingRequestCount;
   [connection addRequest:playActivityRequest
-       completionHandler:^(FBSDKGraphRequestConnection *innerConnection, id playActivity, NSError *error) {
+            completion:^(id<FBSDKGraphRequestConnecting> innerConnection, id playActivity, NSError *error) {
          if (error) {
            NSLog(@"Failed get fb_sample_rps:throw activities for user '%@': %@", fbid, error);
          } else if (playActivity) {
@@ -211,8 +200,8 @@
                                             }];
   ++pendingRequestCount;
   [connection addRequest:gameActivityRequest
-          batchEntryName:@"games-post"
-       completionHandler:^(FBSDKGraphRequestConnection *innerConnection, id result, NSError *error) {
+                    name:@"games-post"
+              completion:^(id<FBSDKGraphRequestConnecting> innerConnection, id result, NSError *error) {
          if (error) {
            NSLog(@"Failed to get game activity %@:", error);
          }
@@ -228,7 +217,7 @@
                                    @"date_format" : @"U",
                                  }];
   ++pendingRequestCount;
-  [connection addRequest:gameData completionHandler:^(FBSDKGraphRequestConnection *innerConnection, id games, NSError *innerError) {
+  [connection addRequest:gameData completion:^(id<FBSDKGraphRequestConnecting> innerConnection, id games, NSError *innerError) {
     if (innerError) {
       // ignore code 2500 errors since that indicates the parent games-post error was empty.
       if ([innerError.userInfo[FBSDKGraphRequestErrorGraphErrorCodeKey] integerValue] != 2500) {

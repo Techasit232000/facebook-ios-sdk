@@ -1,31 +1,58 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+#import "FBSDKAppEvents+Internal.h"
+#import <FBSDKCoreKit/FBSDKAppEventsFlushReason.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
+@protocol FBSDKSwizzling;
+@protocol FBSDKATEPublishing;
+
 @interface FBSDKAppEvents (Testing)
 
-@property (nullable, nonatomic) id<FBSDKAtePublishing> atePublisher;
+@property (class, nonatomic) FBSDKAppEvents *shared;
+@property (nonatomic) BOOL isConfigured;
+
+@property (nullable, nonatomic) id<FBSDKSettings> settings;
+@property (nullable, nonatomic) Class<FBSDKSwizzling> swizzler;
+
+@property (nonatomic) UIApplicationState applicationState;
+@property (nonatomic) FBSDKAppEventsFlushBehavior flushBehavior;
+@property (nullable, nonatomic) id<FBSDKATEPublishing> atePublisher;
+@property (nonatomic, copy) NSString *pushNotificationsDeviceTokenString;
+
+- (void)reset;
+
+- (void)logImplicitEvent:(FBSDKAppEventName)eventName
+              valueToSum:(NSNumber *)valueToSum
+              parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
+             accessToken:(FBSDKAccessToken *)accessToken;
+- (void)logInternalEvent:(FBSDKAppEventName)eventName
+      isImplicitlyLogged:(BOOL)isImplicitlyLogged;
+- (void)logInternalEvent:(FBSDKAppEventName)eventName
+              valueToSum:(double)valueToSum
+      isImplicitlyLogged:(BOOL)isImplicitlyLogged;
+
 - (instancetype)initWithFlushBehavior:(FBSDKAppEventsFlushBehavior)flushBehavior
                  flushPeriodInSeconds:(int)flushPeriodInSeconds;
 - (void)publishATE;
-+ (void)setSettings:(id<FBSDKSettings>)settings;
-+ (void)reset;
+
+- (void)publishInstall;
+- (void)fetchServerConfiguration:(nullable FBSDKCodeBlock)callback;
+- (void)    logEvent:(FBSDKAppEventName)eventName
+          valueToSum:(NSNumber *)valueToSum
+          parameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
+  isImplicitlyLogged:(BOOL)isImplicitlyLogged
+         accessToken:(nullable FBSDKAccessToken *)accessToken;
+- (void)applicationDidBecomeActive;
+- (void)applicationMovingFromActiveState;
+- (void)applicationTerminating;
 
 @end
 

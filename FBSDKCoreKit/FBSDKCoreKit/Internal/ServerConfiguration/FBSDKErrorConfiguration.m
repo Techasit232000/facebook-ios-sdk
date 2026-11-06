@@ -1,28 +1,18 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "FBSDKErrorConfiguration.h"
 
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #import "FBSDKGraphRequestProtocol.h"
 #import "FBSDKInternalUtility+Internal.h"
-#import "FBSDKSettings.h"
 
 static NSString *const kErrorCategoryOther = @"other";
 static NSString *const kErrorCategoryTransient = @"transient";
@@ -72,10 +62,10 @@ static NSString *const kErrorCategoryLogin = @"login";
         @"ErrorRecovery.Login.Suggestion",
         @"FacebookSDK",
         [FBSDKInternalUtility.sharedUtility bundleForStrings],
-        @"Please log into this app again to reconnect your Facebook account.",
+        @"Please log in to this app again to reconnect your Facebook account.",
         @"The fallback message to display to recover invalidated tokens"
       );
-      NSArray *fallbackArray = @[
+      NSArray<NSDictionary<NSString *, id> *> *fallbackArray = @[
         @{ @"name" : @"login",
            @"items" : @[@{ @"code" : @102 },
                         @{ @"code" : @190 }],
@@ -130,9 +120,9 @@ static NSString *const kErrorCategoryLogin = @"login";
         category = FBSDKGraphRequestErrorRecoverable;
       }
       NSString *suggestion = dictionary[@"recovery_message"];
-      NSArray *options = dictionary[@"recovery_options"];
+      NSArray<NSString *> *options = dictionary[@"recovery_options"];
 
-      NSArray *validItems = [FBSDKTypeUtility dictionary:dictionary objectForKey:@"items" ofType:NSArray.class];
+      NSArray<NSDictionary<NSString *, id> *> *validItems = [FBSDKTypeUtility dictionary:dictionary objectForKey:@"items" ofType:NSArray.class];
       for (NSDictionary<NSString *, id> *codeSubcodesDictionary in validItems) {
         NSDictionary<NSString *, id> *validCodeSubcodesDictionary = [FBSDKTypeUtility dictionaryValue:codeSubcodesDictionary];
         if (!validCodeSubcodesDictionary) {
@@ -151,7 +141,7 @@ static NSString *const kErrorCategoryLogin = @"login";
           [FBSDKTypeUtility dictionary:self->_configurationDictionary setObject:currentSubcodes forKey:code];
         }
 
-        NSArray *validSubcodes = [FBSDKTypeUtility dictionary:validCodeSubcodesDictionary objectForKey:@"subcodes" ofType:NSArray.class];
+        NSArray<NSNumber *> *validSubcodes = [FBSDKTypeUtility dictionary:validCodeSubcodesDictionary objectForKey:@"subcodes" ofType:NSArray.class];
         if (validSubcodes.count > 0) {
           for (NSNumber *subcodeNumber in validSubcodes) {
             NSNumber *validSubcodeNumber = [FBSDKTypeUtility numberValue:subcodeNumber];
@@ -185,7 +175,12 @@ static NSString *const kErrorCategoryLogin = @"login";
 
 - (instancetype)initWithCoder:(NSCoder *)decoder
 {
-  NSSet *classes = [[NSSet alloc] initWithObjects:[NSDictionary<NSString *, id> class], FBSDKErrorRecoveryConfiguration.class, nil];
+  NSSet<Class> *classes = [NSSet setWithArray:@[
+    NSDictionary.class,
+    NSString.class,
+    FBSDKErrorRecoveryConfiguration.class,
+                           ]];
+
   NSDictionary<NSString *, id> *configurationDictionary = [decoder decodeObjectOfClasses:classes
                                                                                   forKey:FBSDKERRORCONFIGURATION_DICTIONARY_KEY];
   return [self initWithDictionary:configurationDictionary];
@@ -200,7 +195,17 @@ static NSString *const kErrorCategoryLogin = @"login";
 
 - (id)copyWithZone:(NSZone *)zone
 {
-  return self;
+  // Deep copy the configuration dictionary since inner values are also mutable dictionaries
+  NSMutableDictionary *deepCopy = [NSMutableDictionary dictionaryWithCapacity:_configurationDictionary.count];
+  for (NSString *key in _configurationDictionary) {
+    id value = _configurationDictionary[key];
+    if ([value isKindOfClass:[NSDictionary class]]) {
+      deepCopy[key] = [NSMutableDictionary dictionaryWithDictionary:value];
+    } else {
+      deepCopy[key] = value;
+    }
+  }
+  return [[FBSDKErrorConfiguration alloc] initWithDictionary:deepCopy];
 }
 
 @end

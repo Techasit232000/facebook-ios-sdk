@@ -1,31 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "FBSDKGraphRequestBody.h"
 
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
-#import "FBSDKConstants.h"
-#import "FBSDKCrypto.h"
-#import "FBSDKGraphRequestDataAttachment.h"
-#import "FBSDKLogger.h"
 #import "FBSDKLogger+Internal.h"
-#import "FBSDKSettings.h"
 
 #define kNewline @"\r\n"
 
@@ -42,7 +28,7 @@
 - (instancetype)init
 {
   if ((self = [super init])) {
-    _stringBoundary = [FBSDKCrypto randomString:32];
+    _stringBoundary = fb_randomString(32);
     _data = [NSMutableData new];
     _json = [NSMutableDictionary dictionary];
     _requiresMultipartDataFormat = NO;
@@ -142,7 +128,7 @@
            contentType:(NSString *)contentType
           contentBlock:(FBSDKCodeBlock)contentBlock
 {
-  NSMutableArray *disposition = [NSMutableArray new];
+  NSMutableArray<NSString *> *disposition = [NSMutableArray new];
   [FBSDKTypeUtility array:disposition addObject:@"Content-Disposition: form-data"];
   if (key) {
     [FBSDKTypeUtility array:disposition addObject:[[NSString alloc] initWithFormat:@"name=\"%@\"", key]];

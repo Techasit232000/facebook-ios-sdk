@@ -1,29 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
-#import "FBSDKFeatureExtractor.h"
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #import "FBSDKModelManager.h"
-#import "FBSDKRulesFromKeyProvider.h"
 #import "FBSDKViewHierarchy.h"
 #import "FBSDKViewHierarchyMacros.h"
 
@@ -46,12 +34,22 @@ void sum(float *val0, float *val1);
 
 @implementation FBSDKFeatureExtractor
 
-static id<FBSDKRulesFromKeyProvider> _keyProvider;
+static id<FBSDKRulesFromKeyProvider> _rulesFromKeyProvider;
 
-+ (void)configureWithRulesFromKeyProvider:(id<FBSDKRulesFromKeyProvider>)keyProvider
++ (nullable id<FBSDKRulesFromKeyProvider>)rulesFromKeyProvider
+{
+  return _rulesFromKeyProvider;
+}
+
++ (void)setRulesFromKeyProvider:(nullable id<FBSDKRulesFromKeyProvider>)rulesFromKeyProvider
+{
+  _rulesFromKeyProvider = rulesFromKeyProvider;
+}
+
++ (void)configureWithRulesFromKeyProvider:(id<FBSDKRulesFromKeyProvider>)rulesFromKeyProvider
 {
   if (self == FBSDKFeatureExtractor.class) {
-    _keyProvider = keyProvider;
+    self.rulesFromKeyProvider = rulesFromKeyProvider;
   }
 }
 
@@ -86,7 +84,7 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
 {
   BOOL isValid = [useCaseKey isKindOfClass:NSString.class];
   if (isValid) {
-    _rules = [_keyProvider getRulesForKey:useCaseKey];
+    _rules = [self.rulesFromKeyProvider getRulesForKey:useCaseKey];
   }
 }
 
@@ -109,9 +107,9 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
   NSString *screenName = viewHierarchy[VIEW_HIERARCHY_SCREEN_NAME_KEY];
   NSMutableArray<NSMutableDictionary<NSString *, id> *> *siblings = [NSMutableArray array];
 
-  [self pruneTree:[[FBSDKTypeUtility array:viewTree objectAtIndex:0] mutableCopy] siblings:siblings];
+  [self pruneTree:[viewTree.firstObject mutableCopy] siblings:siblings];
 
-  float *result = [self parseFeatures:[FBSDKTypeUtility array:viewTree objectAtIndex:0]];
+  float *result = [self parseFeatures:viewTree.firstObject];
 
   NSMutableDictionary<NSString *, id> *interactedNode;
   for (NSMutableDictionary<NSString *, id> *node in siblings) {
@@ -121,7 +119,7 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
   }
 
   NSString *viewTreeString;
-  if ([FBSDKTypeUtility isValidJSONObject:viewTree]) {
+  if ([NSJSONSerialization isValidJSONObject:viewTree]) {
     viewTreeString = [[NSString alloc] initWithData:[FBSDKTypeUtility dataWithJSONObject:viewTree options:0 error:nil] encoding:NSUTF8StringEncoding];
   }
 
@@ -133,7 +131,8 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
 }
 
 #pragma mark - Helper functions
-+ (BOOL)pruneTree:(NSMutableDictionary<NSString *, id> *)node siblings:(NSMutableArray *)siblings
++ (BOOL)pruneTree:(NSMutableDictionary<NSString *, id> *)node
+         siblings:(NSMutableArray<NSMutableDictionary<NSString *, id> *> *)siblings
 {
   // If it's interacted, don't prune away the children and just return.
   BOOL isInteracted = [[FBSDKTypeUtility dictionary:node
@@ -162,7 +161,7 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
     [siblings addObjectsFromArray:childviews];
   } else {
     for (NSMutableDictionary<NSString *, id> *c in childviews) {
-      NSMutableDictionary<NSString *, id> *child = [c mutableCopy];
+      NSMutableDictionary<NSString *, id> *child = c.mutableCopy;
       if ([self pruneTree:child siblings:siblings]) {
         isDescendantInteracted = YES;
         [FBSDKTypeUtility array:newChildren addObject:child];
@@ -175,7 +174,7 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
 }
 
 + (float *)nonparseFeatures:(NSMutableDictionary<NSString *, id> *)node
-                   siblings:(NSMutableArray *)siblings
+                   siblings:(NSMutableArray<NSMutableDictionary<NSString *, id> *> *)siblings
                  screenname:(NSString *)screenname
              viewTreeString:(NSString *)viewTreeString
 {
@@ -240,9 +239,9 @@ static id<FBSDKRulesFromKeyProvider> _keyProvider;
   NSString *validHint = [FBSDKTypeUtility coercedToStringValue:node[VIEW_HIERARCHY_HINT_KEY]];
   NSString *validClassName = [FBSDKTypeUtility coercedToStringValue:node[VIEW_HIERARCHY_CLASS_NAME_KEY]];
 
-  NSString *text = [validText lowercaseString] ?: @"";
-  NSString *hint = [validHint lowercaseString] ?: @"";
-  NSString *className = [validClassName lowercaseString] ?: @"";
+  NSString *text = validText.lowercaseString ?: @"";
+  NSString *hint = validHint.lowercaseString ?: @"";
+  NSString *className = validClassName.lowercaseString ?: @"";
 
   if ([self foundIndicators:[@"$,amount,price,total" componentsSeparatedByString:@","]
                    inValues:@[text, hint]]) {
@@ -346,7 +345,7 @@ void sum(float *val0, float *val1)
   }
 }
 
-+ (BOOL)foundIndicators:(NSArray *)indicators inValues:(NSArray *)values
++ (BOOL)foundIndicators:(NSArray<NSString *> *)indicators inValues:(NSArray<NSString *> *)values
 {
   for (NSString *indicator in indicators) {
     for (NSString *value in values) {
@@ -361,6 +360,9 @@ void sum(float *val0, float *val1)
 
 + (float)regextMatch:(NSString *)pattern text:(NSString *)text
 {
+  if (!text) {
+    return 0.0;
+  }
   NSString *validText = [FBSDKTypeUtility coercedToStringValue:text];
   if (!validText) {
     return 0.0;
@@ -388,16 +390,11 @@ void sum(float *val0, float *val1)
   return [self regextMatch:pattern text:matchText];
 }
 
-#if DEBUG && FBTEST
-
-+ (id<FBSDKRulesFromKeyProvider>)keyProvider
-{
-  return _keyProvider;
-}
+#if DEBUG
 
 + (void)reset
 {
-  _keyProvider = nil;
+  self.rulesFromKeyProvider = nil;
 }
 
 #endif

@@ -1,71 +1,134 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#if BUCK
-import FacebookCore
-#endif
+@testable import FBSDKCoreKit
 
 import TestTools
 import XCTest
 
-class AccessTokenTests: XCTestCase {
+final class AccessTokenTests: XCTestCase {
+
+  // swiftlint:disable implicitly_unwrapped_optional
+  var tokenCache: TestTokenCache!
+  var connection: TestGraphRequestConnection!
+  var graphRequestConnectionFactory: TestGraphRequestConnectionFactory!
+  var graphRequestPiggybackManager: TestGraphRequestPiggybackManager!
+  // swiftlint:enable implicitly_unwrapped_optional
+
+  override func setUp() {
+    super.setUp()
+
+    AccessToken.resetClassDependencies()
+
+    tokenCache = TestTokenCache()
+    connection = TestGraphRequestConnection()
+    graphRequestConnectionFactory = TestGraphRequestConnectionFactory(stubbedConnection: connection)
+    graphRequestPiggybackManager = TestGraphRequestPiggybackManager()
+
+    AccessToken.configure(
+      tokenCache: tokenCache,
+      graphRequestConnectionFactory: graphRequestConnectionFactory,
+      graphRequestPiggybackManager: graphRequestPiggybackManager,
+      errorFactory: TestErrorFactory()
+    )
+  }
 
   override func tearDown() {
     super.tearDown()
 
     AccessToken.current = nil
-    AccessToken.graphRequestConnectionFactory = TestGraphRequestConnectionFactory()
-    AccessToken.resetTokenCache()
+    AccessToken.resetClassDependencies()
   }
 
-  func testAccessTokenCacheIsNilByDefault() {
-    AccessToken.resetTokenCache()
-    XCTAssertNil(AccessToken.tokenCache, "Access token cache should be nil by default")
+  func testDefaultClassDependencies() {
+    AccessToken.resetClassDependencies()
+
+    XCTAssertNil(
+      AccessToken.tokenCache,
+      "Should not have a token cache by default"
+    )
+    XCTAssertNil(
+      AccessToken.graphRequestConnectionFactory,
+      "Should not have a graph request connection factory by default"
+    )
+    XCTAssertNil(
+      AccessToken.graphRequestPiggybackManager,
+      "Should not have a graph request piggyback manager by default"
+    )
   }
 
-  func testSetTokenCache() {
+  func testSettingTokenCache() {
     let cache = TestTokenCache(accessToken: nil, authenticationToken: nil)
     AccessToken.tokenCache = cache
-    XCTAssertTrue(AccessToken.tokenCache === cache, "Access token cache should be settable")
+    XCTAssertIdentical(AccessToken.tokenCache, cache, "Access token cache should be settable")
   }
 
   func testRetrievingCurrentToken() {
-    let cache = TestTokenCache(accessToken: nil, authenticationToken: nil)
-    let testToken = SampleAccessTokens.validToken
+    AccessToken.current = SampleAccessTokens.validToken
 
-    AccessToken.tokenCache = cache
-    AccessToken.current = testToken
-
-    XCTAssertTrue(cache.accessToken === testToken, "Setting the global access token should invoke the cache")
+    XCTAssertIdentical(
+      tokenCache.accessToken,
+      SampleAccessTokens.validToken,
+      "Setting the global access token should invoke the cache"
+    )
   }
 
-  func testRefreshTokenThroughTestGraphRequestConnection() {
-    let testConnection = TestGraphRequestConnection()
-    let factory = TestGraphRequestConnectionFactory.create(withStubbedConnection: testConnection)
-    AccessToken.graphRequestConnectionFactory = factory
-
+  func testRefreshCurrentAccessTokenWithNilToken() {
     AccessToken.current = nil
     AccessToken.refreshCurrentAccessToken(completion: nil)
-    XCTAssertEqual(testConnection.startCallCount, 0, "Should not start connection if no current access token available")
+    XCTAssertEqual(connection.startCallCount, 0, "Should not start connection if no current access token available")
+  }
 
+  func testRefreshingNilTokenError() throws {
+    AccessToken.current = nil
+
+    var connection: GraphRequestConnecting?
+    var data: Any?
+    var error: Error?
+    AccessToken.refreshCurrentAccessToken { potentialConnection, potentialData, potentialError in
+      connection = potentialConnection
+      data = potentialData
+      error = potentialError
+    }
+    XCTAssertNil(
+      connection,
+      "Shouldn't create a connection is there is no token to refresh"
+    )
+    XCTAssertNil(
+      data,
+      "Should not call back with data if there is no token to refresh"
+    )
+
+    let sdkError = try XCTUnwrap(
+      error as? TestSDKError,
+      "Should error when attempting to refresh a nil access token"
+    )
+    XCTAssertEqual(
+      sdkError.code,
+      CoreError.errorAccessTokenRequired.rawValue,
+      "Should return an error with an access token required code"
+    )
+    XCTAssertEqual(
+      sdkError.message,
+      "No current access token to refresh",
+      "Should return an error with an appropriate message"
+    )
+  }
+
+  func testRefreshCurrentAccessTokenWithNonNilToken() {
     AccessToken.current = SampleAccessTokens.validToken
     AccessToken.refreshCurrentAccessToken(completion: nil)
-    XCTAssertEqual(testConnection.startCallCount, 1, "Should start one connection for refreshing")
+    XCTAssertEqual(connection.startCallCount, 1, "Should start one connection for refreshing")
+
+    XCTAssertTrue(
+      graphRequestPiggybackManager.addRefreshPiggybackWasCalled,
+      "Refreshing an access token should add a refresh piggyback"
+    )
   }
 
   func testIsDataAccessExpired() {
@@ -88,98 +151,27 @@ class AccessTokenTests: XCTestCase {
     )
   }
 
-  func testEncoding() {
-    let coder = TestCoder()
+  func testEncodingAndDecoding() throws {
+    // Encode and Decode
     let token = SampleAccessTokens.validToken
-    token.encode(with: coder)
+    let decodedToken = try XCTUnwrap(CodabilityTesting.encodeAndDecode(token))
 
-    XCTAssertEqual(
-      coder.encodedObject["tokenString"] as? String,
-      SampleAccessTokens.validToken.tokenString,
-      "Should encode the expected tokenString with the correct key"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["permissions"] as? Set<Permission>,
-      SampleAccessTokens.validToken.permissions,
-      "Should encode the expected permissions with the correct key"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["declinedPermissions"] as? Set<Permission>,
-      SampleAccessTokens.validToken.declinedPermissions,
-      "Should encode the expected declinedPermissions with the correct key"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["expiredPermissions"] as? Set<Permission>,
-      SampleAccessTokens.validToken.expiredPermissions,
-      "Should encode the expected expiredPermissions with the correct key"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["appID"] as? String,
-      SampleAccessTokens.validToken.appID,
-      "Should encode the expected appID with the correct key"
-    )
-    XCTAssertEqual(
-      coder.encodedObject["userID"] as? String,
-      SampleAccessTokens.validToken.userID,
-      "Should encode the expected userID with the correct key"
-    )
-    XCTAssertEqual(
-      (coder.encodedObject["refreshDate"] as? Date)?.timeIntervalSince1970,
-      token.refreshDate.timeIntervalSince1970,
-      "Should encode the expected refreshDate with the correct key"
-    )
-    XCTAssertEqual(
-      (coder.encodedObject["expirationDate"] as? Date)?.timeIntervalSince1970,
-      SampleAccessTokens.validToken.expirationDate.timeIntervalSince1970,
-      "Should encode the expected expirationDate with the correct key"
-    )
-    XCTAssertEqual(
-      (coder.encodedObject["dataAccessExpirationDate"] as? Date)?.timeIntervalSince1970,
-      SampleAccessTokens.validToken.dataAccessExpirationDate.timeIntervalSince1970,
-      "Should encode the expected dataAccessExpirationDate with the correct key"
-    )
-  }
+    // Test Objects
+    XCTAssertEqual(decodedToken, token, .isCodable)
+    XCTAssertNotIdentical(decodedToken, token, .isCodable)
 
-  func testDecoding() {
-    let decoder = TestCoder()
-    _ = AccessToken(coder: decoder)
-
-    XCTAssertTrue(
-      decoder.decodedObject["tokenString"] is NSString.Type,
-      "Should decode the expected type for the tokenString key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["permissions"] is NSSet.Type,
-      "Should decode the expected type for the permissions key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["declinedPermissions"] is NSSet.Type,
-      "Should decode the expected type for the declinedPermissions key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["expiredPermissions"] is NSSet.Type,
-      "Should decode the expected type for the expiredPermissions key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["appID"] is NSString.Type,
-      "Should decode the expected type for the appID key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["userID"] is NSString.Type,
-      "Should decode the expected type for the userID key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["refreshDate"] is NSDate.Type,
-      "Should decode the expected type for the refreshDate key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["expirationDate"] is NSDate.Type,
-      "Should decode the expected type for the expirationDate key"
-    )
-    XCTAssertTrue(
-      decoder.decodedObject["dataAccessExpirationDate"] is NSDate.Type,
-      "Should decode the expected type for the dataAccessExpirationDate key"
-    )
+    // Test Properties
+    XCTAssertEqual(decodedToken.tokenString, token.tokenString, .isCodable)
+    XCTAssertEqual(decodedToken.appID, token.appID, .isCodable)
+    XCTAssertEqual(decodedToken.appID, token.appID, .isCodable)
+    XCTAssertEqual(decodedToken.declinedPermissions, token.declinedPermissions, .isCodable)
+    XCTAssertEqual(decodedToken.expiredPermissions, token.expiredPermissions, .isCodable)
+    XCTAssertEqual(decodedToken.permissions, token.permissions, .isCodable)
+    XCTAssertEqual(decodedToken.tokenString, token.tokenString, .isCodable)
+    XCTAssertEqual(decodedToken.userID, token.userID, .isCodable)
+    XCTAssertEqual(decodedToken.expirationDate, token.expirationDate, .isCodable)
+    XCTAssertEqual(decodedToken.refreshDate, token.refreshDate, .isCodable)
+    XCTAssertEqual(decodedToken.dataAccessExpirationDate, token.dataAccessExpirationDate, .isCodable)
   }
 
   func testEquatability() {
@@ -219,26 +211,12 @@ class AccessTokenTests: XCTestCase {
     let token = SampleAccessTokens.create(withPermissions: [name])
     XCTAssertTrue(token.hasGranted(Permission(stringLiteral: name)))
   }
+}
 
-  func testRefreshingNilToken() {
-    AccessToken.current = nil
-    AccessToken.refreshCurrentAccessToken { potentialConnection, potentialData, potentialError in
-      XCTAssertNil(
-        potentialConnection,
-        "Shouldn't create a connection is there is no token to refresh"
-      )
-      XCTAssertNil(
-        potentialData,
-        "Should not call back with data if there is no token to refresh"
-      )
-      guard let error = potentialError else {
-        return XCTFail("Should error when attempting to refresh a nil access token")
-      }
-      XCTAssertEqual(
-        (error as NSError).code,
-        CoreError.errorAccessTokenRequired.rawValue,
-        "Should return a known error"
-      )
-    }
-  }
+// swiftformat:disable extensionaccesscontrol
+
+// MARK: - Assumptions
+
+fileprivate extension String {
+  static let isCodable = "AccessToken should be encodable and decodable"
 }

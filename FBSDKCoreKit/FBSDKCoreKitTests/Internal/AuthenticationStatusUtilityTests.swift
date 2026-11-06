@@ -1,48 +1,118 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
 import TestTools
 import XCTest
 
-class AuthenticationStatusUtilityTests: XCTestCase {
+final class AuthenticationStatusUtilityTests: XCTestCase {
 
-  // swiftlint:disable:next force_unwrapping
+  // swiftlint:disable implicitly_unwrapped_optional
   let url = URL(string: "m.facebook.com/platform/oidc/status/")!
+  var sessionDataTask: TestSessionDataTask!
+  var sessionDataTaskProvider: TestSessionProvider!
+  // swiftlint:enable implicitly_unwrapped_optional
 
   override func setUp() {
     super.setUp()
 
-    AuthenticationToken.current = SampleAuthenticationToken.validToken
-    AccessToken.setCurrent(SampleAccessTokens.validToken, shouldDispatchNotif: false)
-    Profile.setCurrent(SampleUserProfiles.valid, shouldPostNotification: false)
+    _AuthenticationStatusUtility.resetClassDependencies()
+
+    TestAccessTokenWallet.stubbedCurrentAccessToken = SampleAccessTokens.validToken
+    TestAuthenticationTokenWallet.current = SampleAuthenticationToken.validToken
+    TestProfileProvider.current = SampleUserProfiles.createValid()
+
+    sessionDataTask = TestSessionDataTask()
+    sessionDataTaskProvider = TestSessionProvider()
+    sessionDataTaskProvider.stubbedDataTask = sessionDataTask
+
+    _AuthenticationStatusUtility.configure(
+      profileSetter: TestProfileProvider.self,
+      sessionDataTaskProvider: sessionDataTaskProvider,
+      accessTokenWallet: TestAccessTokenWallet.self,
+      authenticationTokenWallet: TestAuthenticationTokenWallet.self
+    )
+  }
+
+  override func tearDown() {
+    _AuthenticationStatusUtility.resetClassDependencies()
+    TestAccessTokenWallet.reset()
+    TestAuthenticationTokenWallet.reset()
+    TestProfileProvider.reset()
+    sessionDataTask = nil
+    sessionDataTaskProvider = nil
+
+    super.tearDown()
+  }
+
+  func testDefaultClassDependencies() {
+    _AuthenticationStatusUtility.resetClassDependencies()
+
+    XCTAssertNil(
+      _AuthenticationStatusUtility.profileSetter,
+      "Should not have a profile setter by default"
+    )
+    XCTAssertNil(
+      _AuthenticationStatusUtility.sessionDataTaskProvider,
+      "Should not have a session data task provider by default"
+    )
+    XCTAssertNil(
+      _AuthenticationStatusUtility.accessTokenWallet,
+      "Should not have an access token default"
+    )
+    XCTAssertNil(
+      _AuthenticationStatusUtility.authenticationTokenWallet,
+      "Should not have an authentication token by default"
+    )
+  }
+
+  func testConfiguringWithCustomClassDependencies() {
+    XCTAssertTrue(
+      _AuthenticationStatusUtility.profileSetter === TestProfileProvider.self,
+      "Should be able to set a custom profile setter"
+    )
+    XCTAssertIdentical(
+      _AuthenticationStatusUtility.sessionDataTaskProvider,
+      sessionDataTaskProvider,
+      "Should be able to set a custom session data task provider"
+    )
+    XCTAssertTrue(
+      _AuthenticationStatusUtility.accessTokenWallet === TestAccessTokenWallet.self,
+      "Should be able to set a custom access token"
+    )
+    XCTAssertTrue(
+      _AuthenticationStatusUtility.authenticationTokenWallet === TestAuthenticationTokenWallet.self,
+      "Should be able to set a custom authentication token"
+    )
   }
 
   func testCheckAuthenticationStatusWithNoToken() {
-    AuthenticationToken.current = nil
-    AuthenticationStatusUtility.checkAuthenticationStatus()
+    TestAuthenticationTokenWallet.current = nil
+    _AuthenticationStatusUtility.checkAuthenticationStatus()
 
-    XCTAssertNotNil(AccessToken.current)
-    XCTAssertNotNil(Profile.current)
+    XCTAssertNil(
+      sessionDataTaskProvider.capturedRequest,
+      "Should not create a request if there is no authentication token"
+    )
+
+    XCTAssertNotNil(
+      TestAccessTokenWallet.current,
+      "Should not reset the current access token on failure to check the status of an authentication token"
+    )
+    XCTAssertNotNil(
+      TestProfileProvider.current,
+      "Should not reset the current profile on failure to check the status of an authentication token"
+    )
   }
 
   func testRequestURL() {
-    let url = AuthenticationStatusUtility._requestURL()
+    let url = _AuthenticationStatusUtility._requestURL()
 
     XCTAssertEqual(url.host, "m.facebook.com")
     XCTAssertEqual(url.path, "/platform/oidc/status")
@@ -63,18 +133,18 @@ class AuthenticationStatusUtilityTests: XCTestCase {
       headerFields: header
     )! // swiftlint:disable:this force_unwrapping
 
-    AuthenticationStatusUtility._handle(response)
+    _AuthenticationStatusUtility._handle(response)
 
     XCTAssertNil(
-      AuthenticationToken.current,
+      TestAuthenticationTokenWallet.current,
       "Authentication token should be cleared when not authorized"
     )
     XCTAssertNil(
-      AccessToken.current,
+      TestAccessTokenWallet.current,
       "Access token should be cleared when not authorized"
     )
     XCTAssertNil(
-      Profile.current,
+      TestProfileProvider.current,
       "Profile should be cleared when not authorized"
     )
   }
@@ -88,18 +158,18 @@ class AuthenticationStatusUtilityTests: XCTestCase {
       headerFields: header
     )! // swiftlint:disable:this force_unwrapping
 
-    AuthenticationStatusUtility._handle(response)
+    _AuthenticationStatusUtility._handle(response)
 
     XCTAssertNotNil(
-      AuthenticationToken.current,
+      TestAuthenticationTokenWallet.current,
       "Authentication token should not be cleared when connected"
     )
     XCTAssertNotNil(
-      AccessToken.current,
+      TestAccessTokenWallet.current,
       "Access token should not be cleared when connected"
     )
     XCTAssertNotNil(
-      Profile.current,
+      TestProfileProvider.current,
       "Profile should not be cleared when connected"
     )
   }
@@ -112,24 +182,24 @@ class AuthenticationStatusUtilityTests: XCTestCase {
       headerFields: [:]
     )! // swiftlint:disable:this force_unwrapping
 
-    AuthenticationStatusUtility._handle(response)
+    _AuthenticationStatusUtility._handle(response)
 
     XCTAssertNotNil(
-      AuthenticationToken.current,
+      TestAuthenticationTokenWallet.current,
       "Authentication token should not be cleared when connected"
     )
     XCTAssertNotNil(
-      AccessToken.current,
+      TestAccessTokenWallet.current,
       "Access token should not be cleared when connected"
     )
     XCTAssertNotNil(
-      Profile.current,
+      TestProfileProvider.current,
       "Profile should not be cleared when connected"
     )
   }
 
   func testHandleResponseWithFuzzyData() {
-    for _ in 0..<100 {
+    for _ in 0 ..< 100 {
       let header = [
         "fb-s": Fuzzer.random.description,
         "some_header_key": Fuzzer.random.description,
@@ -142,7 +212,7 @@ class AuthenticationStatusUtilityTests: XCTestCase {
         headerFields: header as? [String: String]
       )! // swiftlint:disable:this force_unwrapping
 
-      AuthenticationStatusUtility._handle(response)
+      _AuthenticationStatusUtility._handle(response)
     }
   }
 }

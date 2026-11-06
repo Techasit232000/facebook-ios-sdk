@@ -1,21 +1,9 @@
 #!/bin/sh
-# Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 #
-# You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-# copy, modify, and distribute this software in source code or binary form for use
-# in connection with the web services and APIs provided by Facebook.
-#
-# As with any software that integrates with the Facebook platform, your use of
-# this software is subject to the Facebook Developer Principles and Policies
-# [http://developers.facebook.com/policy/]. This copyright notice shall be
-# included in all copies or substantial portions of the software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
 # shellcheck disable=SC2039
 # shellcheck disable=SC2005
@@ -59,7 +47,6 @@ main() {
     CORE_KIT="FBSDKCoreKit"
     LOGIN_KIT="FBSDKLoginKit"
     SHARE_KIT="FBSDKShareKit"
-    FACEBOOK_GAMING_SERVICES="FacebookGamingServices"
     GAMING_SERVICES_KIT="FBSDKGamingServicesKit"
 
     SDK_BASE_KITS=(
@@ -72,9 +59,7 @@ main() {
 
     SDK_KITS=(
       "${SDK_BASE_KITS[@]}"
-      "$FACEBOOK_GAMING_SERVICES"
       "$GAMING_SERVICES_KIT"
-      "FBSDKTVOSKit"
     )
 
     DOCUMENTATION_KITS=(
@@ -86,29 +71,34 @@ main() {
 
     SDK_VERSION_FILES=(
       "Configurations/Version.xcconfig"
-      "FBSDKCoreKit/FBSDKCoreKit/include/FBSDKCoreKitVersions.h"
-      "Sources/FBAEMKit/FBAEMKitVersions.h"
-      "Sources/FBSDKCoreKit_Basics/FBSDKCrashHandler.m"
+      "FBSDKCoreKit_Basics/FBSDKCoreKit_Basics/include/FBSDKVersions.h"
+      "FBSDKCoreKit/FBSDKCoreKitTests/AppLinkNavigationTests.swift"
+      "Package.swift"
     )
 
     SDK_GRAPH_API_VERSION_FILES=(
-      "FBSDKCoreKit/FBSDKCoreKit/include/FBSDKCoreKitVersions.h"
-      "FBSDKCoreKit/FBSDKCoreKitTests/GraphRequestTests.swift"
-      "Sources/FBAEMKit/FBAEMKitVersions.h"
-      "Sources/FBAEMKit/FBAEMNetworker.m"
+      "FBSDKCoreKit_Basics/FBSDKCoreKit_Basics/include/FBSDKVersions.h"
+      "samples/FacebookLoginSample/FacebookLoginSample/LoginDetailsViewController.swift"
     )
 
-    SDK_MAIN_VERSION_FILE="FBSDKCoreKit/FBSDKCoreKit/include/FBSDKCoreKitVersions.h"
+    SDK_MAIN_VERSION_FILE="FBSDKCoreKit_Basics/FBSDKCoreKit_Basics/include/FBSDKVersions.h"
 
-    SDK_FRAMEWORK_NAME="FacebookSDK"
-
-    SDK_POD_SPECS=("${SDK_KITS[@]}" "$SDK_FRAMEWORK_NAME")
+    SDK_POD_SPECS=("${SDK_KITS[@]}")
     SDK_POD_SPECS=("${SDK_POD_SPECS[@]/%/.podspec}")
 
-    SDK_CURRENT_VERSION=$(grep -Eo 'FBSDK_VERSION_STRING @".*"' "$SDK_DIR/$SDK_MAIN_VERSION_FILE" | awk -F'"' '{print $2}')
-    SDK_CURRENT_GRAPH_API_VERSION=$(grep -Eo 'FBSDK_DEFAULT_GRAPH_API_VERSION @".*"' "$SDK_DIR/$SDK_MAIN_VERSION_FILE" | awk -F'"' '{print $2}')
+    # `|| true` so a non-match does not trip `set -o pipefail` here. Without it every
+    # run.sh subcommand aborts at startup with exit 1 and no output at all, which says
+    # nothing about the actual problem.
+    SDK_CURRENT_VERSION=$(grep -Eo 'FBSDK_VERSION_STRING @".*"' "$SDK_DIR/$SDK_MAIN_VERSION_FILE" 2>/dev/null | awk -F'"' '{print $2}' || true)
+    SDK_CURRENT_GRAPH_API_VERSION=$(grep -Eo 'FBSDK_DEFAULT_GRAPH_API_VERSION @".*"' "$SDK_DIR/$SDK_MAIN_VERSION_FILE" 2>/dev/null | awk -F'"' '{print $2}' || true)
 
-    SDK_GIT_REMOTE="https://github.com/facebook/facebook-ios-sdk"
+    if [ -z "$SDK_CURRENT_VERSION" ] || [ -z "$SDK_CURRENT_GRAPH_API_VERSION" ]; then
+      echo "ERROR: could not read the SDK version from $SDK_MAIN_VERSION_FILE" >&2
+      echo "       This is the canonical version definition; if it moved, update SDK_MAIN_VERSION_FILE." >&2
+      exit 1
+    fi
+
+    SDK_GIT_REMOTE="https://github.com/meta/facebook-ios-sdk"
 
     if [ -f "$PWD/internal/scripts/internal_globals.sh" ]; then SDK_INTERNAL=1; else SDK_INTERNAL=0; fi
   fi
@@ -127,7 +117,6 @@ main() {
   "release") release_sdk "$@" ;;
   "setup") setup_sdk "$@" ;;
   "tag-current-version") tag_current_version "$@" ;;
-  "verify-spm-headers") verify_spm_headers "$@" ;;
   "verify-xcode-integration") verify_xcode_integration "$@" ;;
   "--help" | "help") echo "Check main() for supported commands" ;;
   esac
@@ -154,7 +143,7 @@ grep_for_old_version() {
   RED='\033[1;31m'
   RESET='\033[0m'
 
-  FILES_WITH_OLD_VERSION=$(grep -rF "$old_version" -- * | grep -Ev '(CHANGELOG.md|\bbuild/|\bdocs/)')
+  FILES_WITH_OLD_VERSION=$(grep -rF "$old_version" -- * | grep -Ev '(CHANGELOG.md|Package.swift|\bbuild/|\bdocs|\.podspec)')
   if [ -n "$FILES_WITH_OLD_VERSION" ]; then
     echo "${RED}ERROR: Grep found the old $old_version version in ${FILES_WITH_OLD_VERSION}${RESET}" 1>&2;
     exit 1
@@ -181,7 +170,6 @@ bump_version() {
 
   local version_change_files=(
     "${SDK_VERSION_FILES[@]}"
-    "${SDK_POD_SPECS[@]}"
   )
 
   # Replace the previous version to the new version in relative files
@@ -293,7 +281,6 @@ tag_current_version() {
   fi
 }
 
-# Build
 build_sdk() {
   build_xcode_workspace() {
     xcodebuild build \
@@ -303,87 +290,16 @@ build_sdk() {
       -configuration Debug | xcpretty
   }
 
-  build_carthage() {
-    CARTHAGE_BIN_PATH=$( which carthage ) sh scripts/carthage.sh build --no-skip-current
-
-    if [ "${1:-}" == "--archive" ]; then
-      CARTHAGE_BIN_PATH=$( which carthage ) sh scripts/carthage.sh archive --output Carthage/Release/
-    fi
-  }
-
   local build_type=${1:-}
   if [ -n "$build_type" ]; then shift; fi
 
   case "$build_type" in
-  "carthage") build_carthage "$@" ;;
   "xcode") build_xcode_workspace "$@" ;;
   *) echo "Unsupported Build: $build_type" ;;
   esac
 }
 
-# Release
-# Builds and stores various build flavors under build/Release
-# where they can be found and uploaded by a travis job
 release_sdk() {
-  # Release github
-  release_github() {
-    mkdir -p build/Release
-    rm -rf build/Release/*
-
-    # Release frameworks in dynamic (mostly for Carthage)
-    release_dynamic() {
-      CARTHAGE_BIN_PATH=$( which carthage ) sh scripts/carthage.sh build --no-skip-current
-      CARTHAGE_BIN_PATH=$( which carthage ) sh scripts/carthage.sh archive --output build/Release/FacebookSDK_Dynamic.framework.zip
-    }
-
-    # Release frameworks in static
-    release_static() {
-      xcodebuild clean build \
-       -workspace FacebookSDK.xcworkspace \
-       -scheme BuildAllKits \
-       -configuration Release | xcpretty
-
-      xcodebuild clean build \
-       -workspace FacebookSDK.xcworkspace \
-       -scheme BuildAllKits_TV \
-       -configuration Release | xcpretty
-
-      cd build || exit
-      cp ../LICENSE ./ # LICENSE file
-      zip -r FacebookSDK_static.zip ./*.framework ./*/*.framework LICENSE
-      mv FacebookSDK_Static.zip Release/
-      for kit in "${SDK_KITS[@]}"; do
-        if [ ! -d "$kit".framework ] \
-          && [ ! -d tv/"$kit".framework ]; then
-          continue
-        fi
-
-        mkdir -p Release/"$kit"
-        if [ -d "$kit".framework ]; then
-          mkdir -p Release/"$kit"/iOS
-          mv "$kit".framework Release/"$kit"/iOS
-        fi
-        if [ -d tv/"$kit".framework ]; then
-          mkdir -p Release/"$kit"/tvOS
-          mv tv/"$kit".framework Release/"$kit"/tvOS
-        fi
-        cd Release || exit
-        zip -r -m "$kit".zip "$kit"
-        cd ..
-      done
-      cd ..
-    }
-
-    local release_type=${1:-}
-    if [ -n "$release_type" ]; then shift; fi
-
-    case "$release_type" in
-    "static") release_static "$@" ;;
-    "dynamic") release_dynamic "$@" ;;
-    *) release_dynamic && release_static ;;
-    esac
-  }
-
   release_docs() {
     for kit in "${DOCUMENTATION_KITS[@]}"; do
       rm -rf "$kit/build" || true
@@ -404,7 +320,6 @@ release_sdk() {
   if [ -n "$release_type" ]; then shift; fi
 
   case "$release_type" in
-  "github") release_github "$@" ;;
   "docs" | "documentation") release_docs "$@" ;;
   *) echo "Unsupported Release: $release_type" ;;
   esac
@@ -435,13 +350,6 @@ check_release_status() {
   for spec in "${SDK_POD_SPECS[@]}"; do
     if [ ! -f "$spec" ]; then
       echo "*** ERROR: unable to release $spec"
-      continue
-    fi
-
-    # Exclude aggregate pod FacebookSDK.
-    # We release it separately from the CI process
-    # because it contains proprietary MarketingKit source code
-    if [ "$spec"  == "$SDK_FRAMEWORK_NAME.podspec" ]; then
       continue
     fi
 
@@ -499,92 +407,6 @@ verify_xcode_integration() {
     -sdk iphonesimulator \
     -workspace testing/TestXcodeIntegration/TestXcodeIntegration.xcworkspace/ \
     -scheme TestXcodeIntegration
-}
-
-verify_spm_headers() {
-  KITS=(
-      "$LOGIN_KIT"
-      "$SHARE_KIT"
-    )
-
-  # Verifies that all public headers exist as symlinks in the 'include' dir
-  # of the SDK they belong to.
-  verify_inclusion() {
-    for kit in "${KITS[@]}"; do
-      cd "$kit/$kit"
-
-      echo "Verifying the following public headers are exposed to SPM for $kit:"
-
-      mkdir -p include
-
-      headers=$(find . -name "*.h" -type f -not -path "./include/*" -not -path "**/Internal/*")
-      echo "$(basename ${headers} )" | sort >| headers.txt
-
-      cat headers.txt
-
-      symlinks=$(find ./include -name "*.h")
-      echo "$(basename ${symlinks} )" | sort >| symlinks.txt
-
-      comm -23 headers.txt symlinks.txt >| missingHeaders.txt
-
-      if [ -s missingHeaders.txt ] ; then
-        echo ""
-        echo "Verification failed:"
-        echo "Please symlink the following public headers to the 'include' directory in $kit"
-        echo "so that they can be found by projects using Swift Package Manager."
-        cat missingHeaders.txt
-
-        rm headers.txt
-        rm symlinks.txt
-        rm missingHeaders.txt
-
-        exit 1;
-      fi
-      rm headers.txt
-      rm symlinks.txt
-      rm missingHeaders.txt
-
-      echo ""
-      cd .. || exit
-      cd .. || exit
-    done
-
-    echo "Success! All of your public headers are visible to users of SPM!"
-  }
-
-  # Verifies that existing symlinks are valid since it is easy to break them by moving the
-  # original file
-  verify_validity() {
-    echo ""
-    echo "Verifying that the symlinks used for exposing public headers to SPM are pointing to valid source files."
-
-    for kit in "${KITS[@]}"; do
-      cd "$kit"
-
-      find . -type l ! -exec test -e {} \; -print >| ../BadSymlinks.txt
-      cd .. || exit
-    done
-
-    if [ -s BadSymlinks.txt ] ; then
-      echo ""
-      echo "Bad symlinks found: "
-      cat BadSymlinks.txt
-      echo "Please fix these by recreating the symlink(s) from the include directory with: "
-      echo "ln -s <path_to_source_file(s)> ."
-      echo "run ./scripts/run.sh verify-spm-headers to verify that these are fixed."
-
-      rm BadSymlinks.txt
-
-      exit 1;
-    fi
-
-    rm BadSymlinks.txt
-
-    echo "Success! All of the public header symlinks are valid!"
-  }
-
-  verify_inclusion
-  verify_validity
 }
 
 # --------------

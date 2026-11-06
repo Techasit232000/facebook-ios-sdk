@@ -1,26 +1,17 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKAppEventsState.h"
+#import <FBSDKCoreKit/FBSDKAppEventsState.h>
 
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 
 #define FBSDK_APPEVENTSTATE_ISIMPLICIT_KEY @"isImplicit"
+#define FBSDK_OPERATIONAL_PARAMETERS_KEY @"operationalParameters"
 
 #define FBSDK_APPEVENTSSTATE_MAX_EVENTS 1000
 
@@ -31,17 +22,22 @@
 #define FBSDK_APPEVENTSTATE_RECEIPTDATA_KEY @"receipt_data"
 #define FBSDK_APPEVENTSTATE_RECEIPTID_KEY @"receipt_id"
 
-static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
-
 @interface FBSDKAppEventsState ()
 
-@property (nonatomic) NSMutableArray *mutableEvents;
+@property (nonatomic) NSMutableArray<NSDictionary<NSString *, id> *> *mutableEvents;
 
 @end
 
 @implementation FBSDKAppEventsState
 
-+ (void)configureWithEventProcessors:(nonnull NSArray<id<FBSDKEventsProcessing>> *)eventProcessors
+static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
+
++ (nullable NSArray<id<FBSDKEventsProcessing>> *)eventProcessors
+{
+  return _eventProcessors;
+}
+
++ (void)setEventProcessors:(nullable NSArray<id<FBSDKEventsProcessing>> *)eventProcessors
 {
   _eventProcessors = eventProcessors;
 }
@@ -77,9 +73,9 @@ static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
 {
   NSString *appID = [decoder decodeObjectOfClass:NSString.class forKey:FBSDK_APPEVENTSSTATE_APPID_KEY];
   NSString *tokenString = [decoder decodeObjectOfClass:NSString.class forKey:FBSDK_APPEVENTSSTATE_TOKENSTRING_KEY];
-  NSArray *events = [FBSDKTypeUtility arrayValue:[decoder decodeObjectOfClasses:
-                                                  [NSSet setWithArray:@[NSArray.class, NSDictionary.class]]
-                                                                         forKey:FBSDK_APPEVENTSSTATE_EVENTS_KEY]];
+  NSArray<NSDictionary<NSString *, id> *> *events = [FBSDKTypeUtility arrayValue:[decoder decodeObjectOfClasses:
+                                                                                  [NSSet setWithArray:@[NSArray.class, NSDictionary.class, NSString.class, NSNumber.class]]
+                                                                                                         forKey:FBSDK_APPEVENTSSTATE_EVENTS_KEY]];
   NSUInteger numSkipped = [[decoder decodeObjectOfClass:NSNumber.class forKey:FBSDK_APPEVENTSSTATE_NUMSKIPPED_KEY] unsignedIntegerValue];
 
   if ((self = [self initWithToken:tokenString appID:appID])) {
@@ -99,14 +95,14 @@ static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
 
 #pragma mark - Implementation
 
-- (NSArray *)events
+- (NSArray<NSDictionary<NSString *, id> *> *)events
 {
   return [_mutableEvents copy];
 }
 
 - (void)addEventsFromAppEventState:(FBSDKAppEventsState *)appEventsState
 {
-  NSArray *toAdd = appEventsState->_mutableEvents;
+  NSArray<NSDictionary<NSString *, id> *> *toAdd = appEventsState->_mutableEvents;
   NSInteger excess = _mutableEvents.count + toAdd.count - FBSDK_APPEVENTSSTATE_MAX_EVENTS;
   if (excess > 0) {
     NSInteger range = FBSDK_APPEVENTSSTATE_MAX_EVENTS - _mutableEvents.count;
@@ -119,13 +115,19 @@ static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
 
 - (void)addEvent:(NSDictionary<NSString *, id> *)eventDictionary
       isImplicit:(BOOL)isImplicit
+withOperationalParameters:(nullable NSDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *)operationalParameters
 {
+  NSMutableDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *mutableOperationalParameters = operationalParameters.mutableCopy;
+  if (mutableOperationalParameters == nil) {
+    mutableOperationalParameters = [[NSMutableDictionary alloc] initWithDictionary:@{}];
+  }
   if (_mutableEvents.count >= FBSDK_APPEVENTSSTATE_MAX_EVENTS) {
     _numSkipped++;
   } else {
     [FBSDKTypeUtility array:_mutableEvents addObject:@{
-       @"event" : [eventDictionary mutableCopy],
-       FBSDK_APPEVENTSTATE_ISIMPLICIT_KEY : @(isImplicit)
+       @"event" : eventDictionary.mutableCopy,
+       FBSDK_APPEVENTSTATE_ISIMPLICIT_KEY : @(isImplicit),
+       FBSDK_OPERATIONAL_PARAMETERS_KEY : mutableOperationalParameters
      }];
   }
 }
@@ -134,7 +136,7 @@ static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
 {
   NSMutableString *receipts_string = [NSMutableString string];
   NSInteger transactionId = 1;
-  for (NSMutableDictionary<NSString *, id> *events in _mutableEvents) {
+  for (NSDictionary<NSString *, id> *events in _mutableEvents) {
     NSMutableDictionary<NSString *, id> *event = events[@"event"];
 
     NSString *receipt = event[@"receipt_data"];
@@ -175,14 +177,15 @@ static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
     && [self.appID isEqualToString:appID]);
 }
 
-- (NSString *)JSONStringForEventsIncludingImplicitEvents:(BOOL)includeImplicitEvents
+- (NSDictionary<NSString *, NSString *> *)JSONStringForEventsAndOperationalParametersIncludingImplicitEvents:(BOOL)includeImplicitEvents
 {
-  if (_eventProcessors != nil) {
-    for (id<FBSDKEventsProcessing> processor in _eventProcessors) {
+  if (self.class.eventProcessors != nil) {
+    for (id<FBSDKEventsProcessing> processor in self.class.eventProcessors) {
       [processor processEvents:_mutableEvents];
     }
   }
-  NSMutableArray *events = [[NSMutableArray alloc] initWithCapacity:_mutableEvents.count];
+  NSMutableArray<NSMutableDictionary<NSString *, id> *> *events = [[NSMutableArray alloc] initWithCapacity:_mutableEvents.count];
+  NSMutableArray<NSMutableDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *> *operationalParameters = [[NSMutableArray alloc] initWithCapacity:_mutableEvents.count];
   for (NSDictionary<NSString *, id> *eventAndImplicitFlag in _mutableEvents) {
     const BOOL isImplicitEvent = [eventAndImplicitFlag[FBSDK_APPEVENTSTATE_ISIMPLICIT_KEY] boolValue];
     if (!includeImplicitEvents && isImplicitEvent) {
@@ -191,21 +194,19 @@ static NSArray<id<FBSDKEventsProcessing>> *_eventProcessors;
     NSMutableDictionary<NSString *, id> *event = eventAndImplicitFlag[@"event"];
     NSAssert(event != nil, @"event cannot be nil");
     [event removeObjectForKey:FBSDK_APPEVENTSTATE_RECEIPTDATA_KEY];
-
+    NSMutableDictionary<FBSDKAppOperationalDataType, NSDictionary<NSString *, id> *> *operationalParameter = eventAndImplicitFlag[FBSDK_OPERATIONAL_PARAMETERS_KEY];
+    if (operationalParameter == nil) {
+      operationalParameter = [[NSMutableDictionary alloc] initWithDictionary:@{}];
+    }
     [FBSDKTypeUtility array:events addObject:event];
+    [FBSDKTypeUtility array:operationalParameters addObject:operationalParameter];
   }
-
-  return [FBSDKBasicUtility JSONStringForObject:events error:NULL invalidObjectHandler:NULL];
+  NSString *customEvents = [FBSDKBasicUtility JSONStringForObject:events error:NULL invalidObjectHandler:NULL];
+  NSString *operationalData = [FBSDKBasicUtility JSONStringForObject:operationalParameters error:NULL invalidObjectHandler:NULL];
+  return @{
+    @"custom_events": customEvents,
+    @"operational_parameters": operationalData
+  };
 }
-
-#if DEBUG
- #if FBTEST
-+ (NSArray<id<FBSDKEventsProcessing>> *)eventProcessors
-{
-  return _eventProcessors;
-}
-
- #endif
-#endif
 
 @end

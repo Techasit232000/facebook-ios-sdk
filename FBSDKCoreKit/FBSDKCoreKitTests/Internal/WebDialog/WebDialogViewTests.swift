@@ -1,48 +1,64 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-import FBSDKCoreKit
+@testable import FBSDKCoreKit
+
+import TestTools
 import XCTest
 
-class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
+final class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
 
-  var dialog: FBWebDialogView! // swiftlint:disable:this implicitly_unwrapped_optional
-  var webView = TestWebView()
-  var factory = TestWebViewFactory()
+  // swiftlint:disable implicitly_unwrapped_optional
+  var webView: TestWebView!
+  var dialog: FBWebDialogView!
+  var capturedDelegateDidFailError: Error?
+  var webViewFactory: TestWebViewFactory!
+  var urlOpener: TestInternalURLOpener!
+  var errorFactory: TestErrorFactory!
+  // swiftlint:enable implicitly_unwrapped_optional
+
   let frame = CGRect(origin: .zero, size: CGSize(width: 10, height: 10))
   var delegateDidFailWithErrorWasCalled = false
-  var capturedDelegateDidFailError: Error?
   var capturedDidCompleteResults: [String: String]?
   var webDialogViewDidCancelWasCalled = false
   var webDialogViewDidFinishLoadWasCalled = false
-  var urlOpener = TestInternalURLOpener()
 
   override func setUp() {
     super.setUp()
 
-    webView = factory.webView
-    FBWebDialogView.configure(withWebViewProvider: factory, urlOpener: urlOpener)
+    webViewFactory = TestWebViewFactory()
+    urlOpener = TestInternalURLOpener()
+    errorFactory = TestErrorFactory()
+
+    webView = webViewFactory.webView
+    FBWebDialogView.configure(
+      webViewProvider: webViewFactory,
+      urlOpener: urlOpener,
+      errorFactory: errorFactory
+    )
+
     dialog = FBWebDialogView(frame: frame)
     dialog.delegate = self
   }
 
+  override func tearDown() {
+    webView = nil
+    capturedDelegateDidFailError = nil
+    webViewFactory = nil
+    urlOpener = nil
+    errorFactory = nil
+    dialog = nil
+
+    super.tearDown()
+  }
+
   func testCreatingWithDefaults() {
-    FBWebDialogView.reset()
+    FBWebDialogView.resetClassDependencies()
     let dialog = FBWebDialogView(frame: .zero)
 
     XCTAssertNil(
@@ -50,14 +66,40 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
       "Should not have a webview by default"
     )
     XCTAssertNil(
+      FBWebDialogView.webViewProvider,
+      "Should not have a web view provider by default"
+    )
+    XCTAssertNil(
       FBWebDialogView.urlOpener,
       "Should not have a url opener by default"
+    )
+    XCTAssertNil(
+      FBWebDialogView.errorFactory,
+      "Should not have an error factory by default"
+    )
+  }
+
+  func testCreatingWithClassDependencies() {
+    XCTAssertIdentical(
+      FBWebDialogView.webViewProvider,
+      webViewFactory,
+      "Should be able to configure a web view provider"
+    )
+    XCTAssertIdentical(
+      FBWebDialogView.urlOpener,
+      urlOpener,
+      "Should be able to configure an internal URL opener"
+    )
+    XCTAssertIdentical(
+      FBWebDialogView.errorFactory,
+      errorFactory,
+      "Should be able to configure an error factory"
     )
   }
 
   func testRequestsWebView() {
     XCTAssertEqual(
-      factory.capturedFrame,
+      webViewFactory.capturedFrame,
       .zero,
       "Should request a webview with a frame of zero"
     )
@@ -204,7 +246,7 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
     [
       (URLs.connectURLWithQuery, ["bar": "baz"]),
       (URLs.connectURLWithFragment, ["fragment": ""]),
-      (URLs.connectURLWithQueryAndFragment, ["bar": "baz", "fragment": ""])
+      (URLs.connectURLWithQueryAndFragment, ["bar": "baz", "fragment": ""]),
     ].forEach {
       let (url, expectedResults) = $0
       capturedDidCompleteResults = nil
@@ -246,7 +288,7 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
     )
   }
 
-  func testDecideNavigationPolicyWithCancelledUrlWithError() {
+  func testDecideNavigationPolicyWithCancelledUrlWithError() throws {
     var policy: WKNavigationActionPolicy?
     dialog.webView(
       WKWebView(),
@@ -266,13 +308,21 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
       delegateDidFailWithErrorWasCalled,
       "Should invoke the delegate with failure when the url is cancelled and contains an error"
     )
-    guard
-      let error = capturedDelegateDidFailError as NSError?,
-      error.domain == "com.facebook.sdk.core",
-      error.code == 999
-    else {
-      return XCTFail("Should create an error from the URL and call the delegate with it")
-    }
+
+    let errorTestMessage = "Should create an error from the URL and call the delegate with it"
+    let error = try XCTUnwrap(capturedDelegateDidFailError, errorTestMessage)
+    let testError = try XCTUnwrap(error as? TestSDKError, errorTestMessage)
+
+    XCTAssertEqual(
+      testError.code,
+      999,
+      errorTestMessage
+    )
+    XCTAssertEqual(
+      testError.message,
+      "anErrorOhNO",
+      errorTestMessage
+    )
   }
 
   func testDecideNavigationPolicyWithActivatedNavigationType() {
@@ -287,8 +337,8 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
       policy = $0
     }
 
-    XCTAssertEqual(urlOpener.capturedOpenUrl, SampleURLs.valid)
-    urlOpener.capturedOpenUrlCompletion?(true)
+    XCTAssertEqual(urlOpener.capturedOpenURL, SampleURLs.valid)
+    urlOpener.capturedOpenURLCompletion?(true)
     XCTAssertEqual(
       policy,
       .cancel,
@@ -297,7 +347,7 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
 
     policy = nil
 
-    urlOpener.capturedOpenUrlCompletion?(false)
+    urlOpener.capturedOpenURLCompletion?(false)
     XCTAssertEqual(
       policy,
       .cancel,
@@ -317,7 +367,7 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
       policy = $0
     }
 
-    XCTAssertNil(urlOpener.capturedOpenUrl)
+    XCTAssertNil(urlOpener.capturedOpenURL)
     XCTAssertEqual(
       policy,
       .allow,
@@ -342,16 +392,14 @@ class WebDialogViewTests: XCTestCase, WebDialogViewDelegate {
 
   // MARK: - Helpers
 
-  // swiftlint:disable force_unwrapping
   enum URLs {
     static let connectURL = URL(string: "fbconnect://foo")!
     static let connectURLWithQuery = URL(string: "fbconnect://foo?bar=baz")!
     static let connectURLWithFragment = URL(string: "fbconnect://foo#fragment")!
     static let connectURLWithQueryAndFragment = URL(string: "fbconnect://foo?bar=baz#fragment")!
     static let cancelURLWithoutError = URL(string: "fbconnect://cancel")!
-    static let cancelURLWithError = URL(string: "fbconnect://cancel?error_code=999&error_message=anErrorOhNO")!
+    static let cancelURLWithError = URL(string: "fbconnect://cancel?error_code=999&error_msg=anErrorOhNO")!
   }
-  // swiftlint:enable force_unwrapping
 
   var activityIndicatorView: UIActivityIndicatorView {
     guard let loadingIndicator = webView.subviews.first as? UIActivityIndicatorView else {

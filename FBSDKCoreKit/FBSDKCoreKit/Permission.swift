@@ -1,20 +1,10 @@
-// Copyright (c) 2016-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 import Foundation
 
@@ -103,6 +93,10 @@ public enum Permission: Hashable, ExpressibleByStringLiteral {
   case pagesManageInstantArticles
   /// Provides the access to Ads Insights API to pull ads report information for ad accounts you have access to.
   case adsRead
+  /// Provides access to the Facebook profile URL of the person using your app.
+  case userLink
+  /// Provides access a person's age range as listed in their Facebook profile.
+  case userAgeRange
   /**
    Permission with a custom string value.
    See https://developers.facebook.com/docs/facebook-login/permissions for full list of available permissions.
@@ -167,6 +161,8 @@ public enum Permission: Hashable, ExpressibleByStringLiteral {
     case .pagesManageCta: return .pagesManageCta
     case .pagesManageInstantArticles: return .pagesManageInstantArticles
     case .adsRead: return .adsRead
+    case .userLink: return .userLink
+    case .userAgeRange: return .userAgeRange
     case .custom: return nil
     }
   }
@@ -175,7 +171,7 @@ public enum Permission: Hashable, ExpressibleByStringLiteral {
 private enum StringPermission: String {
   case publicProfile = "public_profile"
   case userFriends = "user_friends"
-  case email = "email"
+  case email
   case userAboutMe = "user_about_me"
   case userActionsBooks = "user_actions.books"
   case userActionsFitness = "user_action.fitness"
@@ -208,6 +204,8 @@ private enum StringPermission: String {
   case pagesManageCta = "pages_manage_cta"
   case pagesManageInstantArticles = "pages_manage_instant_articles"
   case adsRead = "ads_read"
+  case userLink = "user_link"
+  case userAgeRange = "user_age_range"
 
   var permission: Permission {
     switch self {
@@ -246,6 +244,8 @@ private enum StringPermission: String {
     case .pagesManageCta: return .pagesManageCta
     case .pagesManageInstantArticles: return .pagesManageInstantArticles
     case .adsRead: return .adsRead
+    case .userLink: return .userLink
+    case .userAgeRange: return .userAgeRange
     }
   }
 }

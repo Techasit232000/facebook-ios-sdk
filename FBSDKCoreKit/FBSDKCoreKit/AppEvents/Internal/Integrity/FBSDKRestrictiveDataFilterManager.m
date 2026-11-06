@@ -1,56 +1,14 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-#import "FBSDKRestrictiveDataFilterManager.h"
-
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
-
-#import "FBSDKServerConfigurationManager.h"
-#import "FBSDKServerConfigurationProviding.h"
-
-@interface FBSDKRestrictiveEventFilter : NSObject
-
-@property (nonatomic, readonly, copy) NSString *eventName;
-@property (nonatomic, readonly, copy) NSDictionary<NSString *, id> *restrictiveParams;
-
-- (instancetype)init NS_UNAVAILABLE;
-+ (instancetype)new NS_UNAVAILABLE;
-
-- (instancetype)initWithEventName:(NSString *)eventName
-                restrictiveParams:(NSDictionary<NSString *, id> *)restrictiveParams;
-
-@end
-
-@implementation FBSDKRestrictiveEventFilter
-
-- (instancetype)initWithEventName:(NSString *)eventName
-                restrictiveParams:(NSDictionary<NSString *, id> *)restrictiveParams
-{
-  self = [super init];
-  if (self) {
-    _eventName = [eventName copy];
-    _restrictiveParams = [restrictiveParams copy];
-  }
-
-  return self;
-}
-
-@end
 
 static FBSDKRestrictiveDataFilterManager *_instance;
 
@@ -86,18 +44,18 @@ static FBSDKRestrictiveDataFilterManager *_instance;
   }
 }
 
-- (nullable NSDictionary<NSString *, id> *)processParameters:(nullable NSDictionary<NSString *, id> *)parameters
-                                                   eventName:(NSString *)eventName
+- (nullable NSDictionary<FBSDKAppEventParameterName, id> *)processParameters:(nullable NSDictionary<FBSDKAppEventParameterName, id> *)parameters
+                                                                   eventName:(FBSDKAppEventName)eventName
 {
   if (!self.isRestrictiveEventFilterEnabled) {
     return parameters;
   }
   if (parameters) {
     @try {
-      NSMutableDictionary<NSString *, id> *params = [NSMutableDictionary dictionaryWithDictionary:parameters];
-      NSMutableDictionary<NSString *, NSString *> *restrictedParams = [NSMutableDictionary dictionary];
+      NSMutableDictionary<FBSDKAppEventParameterName, id> *params = [NSMutableDictionary dictionaryWithDictionary:parameters];
+      NSMutableDictionary<FBSDKAppEventParameterName, NSString *> *restrictedParams = [NSMutableDictionary dictionary];
 
-      for (NSString *key in [parameters keyEnumerator]) {
+      for (NSString *key in parameters.keyEnumerator) {
         NSString *type = [self getMatchedDataTypeWithEventName:eventName paramKey:key];
         if (type) {
           [FBSDKTypeUtility dictionary:restrictedParams setObject:type forKey:key];
@@ -105,7 +63,7 @@ static FBSDKRestrictiveDataFilterManager *_instance;
         }
       }
 
-      if ([[restrictedParams allKeys] count] > 0) {
+      if ([restrictedParams.allKeys count] > 0) {
         NSString *restrictedParamsJSONString = [FBSDKBasicUtility JSONStringForObject:restrictedParams
                                                                                 error:NULL
                                                                  invalidObjectHandler:NULL];
@@ -153,7 +111,7 @@ static FBSDKRestrictiveDataFilterManager *_instance;
   // match by params in custom events with event name
   for (FBSDKRestrictiveEventFilter *filter in self.params) {
     if ([filter.eventName isEqualToString:eventName]) {
-      NSString *type = [FBSDKTypeUtility coercedToStringValue:filter.restrictiveParams[paramKey]];
+      NSString *type = [FBSDKTypeUtility coercedToStringValue:filter.restrictiveParameters[paramKey]];
       if (type) {
         return type;
       }
@@ -181,7 +139,7 @@ static FBSDKRestrictiveDataFilterManager *_instance;
         }
         if (eventInfo[RESTRICTIVE_PARAM_KEY]) {
           FBSDKRestrictiveEventFilter *restrictiveEventFilter = [[FBSDKRestrictiveEventFilter alloc] initWithEventName:eventName
-                                                                                                     restrictiveParams:eventInfo[RESTRICTIVE_PARAM_KEY]];
+                                                                                                 restrictiveParameters:eventInfo[RESTRICTIVE_PARAM_KEY]];
           [FBSDKTypeUtility array:eventFilterArray addObject:restrictiveEventFilter];
         }
         if (restrictiveParams[eventName][PROCESS_EVENT_NAME_KEY]) {

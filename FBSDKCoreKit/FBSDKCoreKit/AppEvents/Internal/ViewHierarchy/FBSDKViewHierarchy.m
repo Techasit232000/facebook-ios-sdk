@@ -1,20 +1,10 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #if !TARGET_OS_TV
 
@@ -22,11 +12,12 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 #import <FBSDKCoreKit_Basics/FBSDKCoreKit_Basics.h>
 #import <objc/runtime.h>
 
-#import "FBSDKAppEventsUtility.h"
 #import "FBSDKCodelessPathComponent.h"
+#import "FBSDKSafeCast.h"
 #import "FBSDKUtility.h"
 #import "FBSDKViewHierarchyMacros.h"
 
@@ -38,13 +29,13 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
 
 @implementation FBSDKViewHierarchy
 
-+ (nullable NSArray *)getChildren:(NSObject *)obj
++ (nullable NSArray<NSObject *> *)getChildren:(NSObject *)obj
 {
   if ([obj isKindOfClass:UIControl.class]) {
     return nil;
   }
 
-  NSMutableArray *children = [NSMutableArray array];
+  NSMutableArray<NSObject *> *children = [NSMutableArray array];
 
   // children of window should be viewcontroller
   if ([obj isKindOfClass:UIWindow.class]) {
@@ -77,7 +68,7 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
   } else if ([obj isKindOfClass:UINavigationController.class]) {
     UIViewController *vc = ((UINavigationController *)obj).visibleViewController;
     UIViewController *tc = ((UINavigationController *)obj).topViewController;
-    NSArray *nextChildren = [FBSDKViewHierarchy getChildren:((UIViewController *)obj).view];
+    NSArray<NSObject *> *nextChildren = [FBSDKViewHierarchy getChildren:((UIViewController *)obj).view];
     for (NSObject *child in nextChildren) {
       if (tc && [self isView:child superViewOfView:tc.view]) {
         [FBSDKTypeUtility array:children addObject:tc];
@@ -101,7 +92,7 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
     }
   } else if ([obj isKindOfClass:UITabBarController.class]) {
     UIViewController *vc = ((UITabBarController *)obj).selectedViewController;
-    NSArray *nextChildren = [FBSDKViewHierarchy getChildren:((UIViewController *)obj).view];
+    NSArray<NSObject *> *nextChildren = [FBSDKViewHierarchy getChildren:((UIViewController *)obj).view];
     for (NSObject *child in nextChildren) {
       if (vc && [self isView:child superViewOfView:vc.view]) {
         [FBSDKTypeUtility array:children addObject:vc];
@@ -120,7 +111,7 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
   } else if ([obj isKindOfClass:UIViewController.class]) {
     UIViewController *vc = (UIViewController *)obj;
     if (vc.isViewLoaded) {
-      NSArray *nextChildren = [FBSDKViewHierarchy getChildren:vc.view];
+      NSArray<NSObject *> *nextChildren = [FBSDKViewHierarchy getChildren:vc.view];
       if (nextChildren.count > 0) {
         [children addObjectsFromArray:nextChildren];
       }
@@ -180,22 +171,22 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
   return nil;
 }
 
-+ (nullable NSArray *)getPath:(NSObject *)obj
++ (nullable NSArray<FBSDKCodelessPathComponent *> *)getPath:(NSObject *)obj
 {
   return [FBSDKViewHierarchy getPath:obj limit:MAX_VIEW_HIERARCHY_LEVEL];
 }
 
-+ (nullable NSArray *)getPath:(NSObject *)obj limit:(int)limit
++ (nullable NSArray<FBSDKCodelessPathComponent *> *)getPath:(NSObject *)obj limit:(int)limit
 {
   if (!obj || limit <= 0) {
     return nil;
   }
 
-  NSMutableArray *path;
+  NSMutableArray<FBSDKCodelessPathComponent *> *path;
 
   NSObject *parent = [FBSDKViewHierarchy getParent:obj];
   if (parent) {
-    NSArray *parentPath = [FBSDKViewHierarchy getPath:parent limit:limit - 1];
+    NSArray<FBSDKCodelessPathComponent *> *parentPath = [FBSDKViewHierarchy getPath:parent limit:limit - 1];
     path = [NSMutableArray arrayWithArray:parentPath];
   } else {
     path = [NSMutableArray array];
@@ -237,7 +228,7 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
   }
 
   if (parent != nil) {
-    NSArray *children = [FBSDKViewHierarchy getChildren:parent];
+    NSArray<NSObject *> *children = [FBSDKViewHierarchy getChildren:parent];
     NSUInteger index = [children indexOfObject:obj];
     if (index != NSNotFound) {
       [FBSDKTypeUtility dictionary:componentInfo setObject:@(index) forKey:CODELESS_MAPPING_INDEX_KEY];
@@ -277,10 +268,10 @@ _Nullable id getVariableFromInstance(NSObject *instance, NSString *variableName)
   if ([obj isKindOfClass:UIControl.class]) {
     // Get actions of UIControl
     UIControl *control = (UIControl *)obj;
-    NSMutableSet *actions = [NSMutableSet set];
-    NSSet *targets = control.allTargets;
+    NSMutableSet<NSString *> *actions = [NSMutableSet set];
+    NSSet<NSObject *> *targets = control.allTargets;
     for (NSObject *target in targets) {
-      NSArray *ary = [control actionsForTarget:target forControlEvent:0];
+      NSArray<NSString *> *ary = [control actionsForTarget:target forControlEvent:0];
       if (ary.count > 0) {
         [actions addObjectsFromArray:ary];
       }
@@ -352,7 +343,7 @@ id getVariableFromInstance(NSObject *instance, NSString *variableName)
   } else if ([obj isKindOfClass:UIPickerView.class]) {
     UIPickerView *picker = (UIPickerView *)obj;
     NSInteger sections = picker.numberOfComponents;
-    NSMutableArray *titles = [NSMutableArray array];
+    NSMutableArray<NSString *> *titles = [NSMutableArray array];
 
     for (NSInteger i = 0; i < sections; i++) {
       NSInteger numberOfRow = [picker numberOfRowsInComponent:i];
@@ -384,14 +375,14 @@ id getVariableFromInstance(NSObject *instance, NSString *variableName)
     formatter.dateFormat = @"yyyy-MM-dd HH:mm:ssZ";
     text = [formatter stringFromDate:picker.date];
   } else if ([obj isKindOfClass:objc_lookUpClass("RCTTextView")]) {
-    NSTextStorage *const textStorage = FBSDK_CAST_TO_CLASS_OR_NIL(getVariableFromInstance(obj, @"_textStorage"), NSTextStorage);
+    NSTextStorage *const textStorage = _FBSDKCastToClassOrNilUnsafeInternal(getVariableFromInstance(obj, @"_textStorage"), NSTextStorage.class);
     if (textStorage) {
-      text = [textStorage string];
+      text = textStorage.string;
     }
   } else if ([obj isKindOfClass:objc_lookUpClass("RCTBaseTextInputView")]) {
-    NSAttributedString *const attributedText = FBSDK_CAST_TO_CLASS_OR_NIL(getVariableFromInstance(obj, @"attributedText"), NSAttributedString);
+    NSAttributedString *const attributedText = _FBSDKCastToClassOrNilUnsafeInternal(getVariableFromInstance(obj, @"attributedText"), NSAttributedString.class);
     if (attributedText) {
-      text = [attributedText string];
+      text = attributedText.string;
     }
   }
 
@@ -504,12 +495,12 @@ id getVariableFromInstance(NSObject *instance, NSString *variableName)
   }
 
   NSString *text = [FBSDKViewHierarchy getText:obj];
-  return text.length > 0 && [FBSDKAppEventsUtility isSensitiveUserData:text];
+  return text.length > 0 && [FBSDKAppEventsUtility.shared isSensitiveUserData:text];
 }
 
 + (nullable NSDictionary<NSString *, id> *)recursiveCaptureTreeWithCurrentNode:(NSObject *)currentNode
                                                                     targetNode:(nullable NSObject *)targetNode
-                                                                 objAddressSet:(nullable NSMutableSet *)objAddressSet
+                                                                 objAddressSet:(nullable NSMutableSet<NSObject *> *)objAddressSet
                                                                           hash:(BOOL)hash
 {
   if (!currentNode) {

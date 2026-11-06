@@ -1,29 +1,19 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
-//
-// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
-// copy, modify, and distribute this software in source code or binary form for use
-// in connection with the web services and APIs provided by Facebook.
-//
-// As with any software that integrates with the Facebook platform, your use of
-// this software is subject to the Facebook Developer Principles and Policies
-// [http://developers.facebook.com/policy/]. This copyright notice shall be
-// included in all copies or substantial portions of the software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #import "RPSGameViewController.h"
 
 #import <AVFoundation/AVFoundation.h>
 #import <QuartzCore/QuartzCore.h>
 
-#import <FBSDKCoreKit/FBSDKCoreKit.h>
-#import <FBSDKLoginKit/FBSDKLoginKit.h>
-#import <FBSDKShareKit/FBSDKShareKit.h>
+@import FBSDKCoreKit;
+@import FBSDKLoginKit;
+@import FBSDKShareKit;
 
 #import "RPSAppDelegate.h"
 #import "RPSCommonObjects.h"
@@ -36,18 +26,10 @@ static NSString *callType[] = {
   @"scissors"
 };
 
-// Some constants for creating Open Graph objects.
 static NSString *kResults[] = {
   @"won",
   @"lost",
   @"tied"
-};
-
-// We upload photos for games, but we'd like to reuse the same objects during a session.
-static NSString *photoURLs[] = {
-  nil,
-  nil,
-  nil
 };
 
 typedef void (^RPSBlock)(void);
@@ -58,15 +40,12 @@ typedef void (^RPSBlock)(void);
 @implementation RPSGameViewController
 {
   BOOL _needsInitialAnimation;
-  BOOL _interestedInImplicitShare;
   RPSCall _lastPlayerCall, _lastComputerCall;
   UIImage *_rightImages[3];
   UIImage *_leftImages[3];
-  UIImage *_imagesToPublish[3];
   RPSBlock _alertOkHandler;
   int _wins, _losses, _ties;
   NSDate *_lastAnimationStartTime;
-  NSMutableSet *_activeConnections;
 }
 
 - (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
@@ -76,7 +55,7 @@ typedef void (^RPSBlock)(void);
     self.title = NSLocalizedString(@"You Rock!", @"You Rock!");
     self.tabBarItem.image = [UIImage imageNamed:@"first"];
 
-    BOOL ipad = ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad);
+    BOOL ipad = ([UIDevice.currentDevice userInterfaceIdiom] == UIUserInterfaceIdiomPad);
 
     NSString *rockRight = ipad ? @"right-rock-128.png" : @"right-rock-88.png";
     NSString *paperRight = ipad ? @"right-paper-128.png" : @"right-paper-88.png";
@@ -94,17 +73,10 @@ typedef void (^RPSBlock)(void);
     _leftImages[RPSCallPaper] = [UIImage imageNamed:paperLeft];
     _leftImages[RPSCallScissors] = [UIImage imageNamed:scissorsLeft];
 
-    _imagesToPublish[RPSCallRock] = [UIImage imageNamed:@"left-rock-128.png"];
-    _imagesToPublish[RPSCallPaper] = [UIImage imageNamed:@"left-paper-128.png"];
-    _imagesToPublish[RPSCallScissors] = [UIImage imageNamed:@"left-scissors-128.png"];
-
     _lastPlayerCall = _lastComputerCall = RPSCallNone;
     _wins = _losses = _ties = 0;
     _alertOkHandler = nil;
     _needsInitialAnimation = YES;
-    _interestedInImplicitShare = YES;
-
-    _activeConnections = [[NSMutableSet alloc] init];
   }
   return self;
 }
@@ -115,7 +87,7 @@ typedef void (^RPSBlock)(void);
 
   // Check for a 15 digit FB App ID. If the FB App ID is less than 15 digits, display an alert.
 
-  NSString *strFbAppId = [FBSDKSettings appID];
+  NSString *strFbAppId = [FBSDKSettings.sharedSettings appID];
   NSString *strEmptyFBId = @"{your-facebook-app-id}";
 
   if ([strFbAppId isEqualToString:strEmptyFBId]) {
@@ -220,7 +192,7 @@ typedef void (^RPSBlock)(void);
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
   // Return YES for supported orientations
-  if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone) {
+  if ([UIDevice.currentDevice userInterfaceIdiom] == UIUserInterfaceIdiomPhone) {
     return (interfaceOrientation != UIInterfaceOrientationPortraitUpsideDown);
   } else {
     return YES;
@@ -348,10 +320,6 @@ typedef void (^RPSBlock)(void);
       break;
   }
   [self updateScoreLabel];
-
-  if (_interestedInImplicitShare) {
-    [self publishResult];
-  }
 }
 
 - (void)updateScoreLabel
@@ -383,7 +351,7 @@ typedef void (^RPSBlock)(void);
                                             otherButtonTitles:@"Share on Facebook",
                           @"Share on Messenger",
                           @"Friends' Activity",
-                          [FBSDKAccessToken currentAccessToken] ? @"Log out" : @"Log in",
+                          FBSDKAccessToken.currentAccessToken ? @"Log out" : @"Log in",
                           nil];
   // Show the sheet
   [sheet showInView:sender];
@@ -403,22 +371,23 @@ typedef void (^RPSBlock)(void);
 {
   switch (buttonIndex) {
     case 0: { // Share on Facebook
-      FBSDKShareDialog *shareDialog = [[FBSDKShareDialog alloc] init];
-      shareDialog.fromViewController = self;
-      if (![self shareWith:shareDialog content:[self getGameShareContent:NO]]) {
+      FBSDKShareDialog *shareDialog = [[FBSDKShareDialog alloc] initWithViewController:self content:[self getGameLinkShareContent] delegate:self];
+      if (![shareDialog show]) {
         [self displayInstallAppWithAppName:@"Facebook"];
       }
       break;
     }
     case 1: { // Share on Messenger
-      if (![self shareWith:[[FBSDKMessageDialog alloc] init] content:[self getGameShareContent:YES]]) {
+      id<FBSDKSharingContent> content = [self getGameLinkShareContent];
+      FBSDKMessageDialog *messageDialog = [[FBSDKMessageDialog alloc] initWithContent:content delegate:self];
+      if (![messageDialog show]) {
         [self displayInstallAppWithAppName:@"Messenger"];
       }
       break;
     }
     case 2: { // See Friends
       UIViewController *friends;
-      if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone) {
+      if ([UIDevice.currentDevice userInterfaceIdiom] == UIUserInterfaceIdiomPhone) {
         friends = [[RPSFriendsViewController alloc] initWithNibName:@"RPSFriendsViewController_iPhone" bundle:nil];
       } else {
         friends = [[RPSFriendsViewController alloc] initWithNibName:@"RPSFriendsViewController_iPad" bundle:nil];
@@ -428,61 +397,21 @@ typedef void (^RPSBlock)(void);
       break;
     }
     case 3: { // Login and logout
-      if ([FBSDKAccessToken currentAccessToken]) {
+      if (FBSDKAccessToken.currentAccessToken) {
         FBSDKLoginManager *login = [[FBSDKLoginManager alloc] init];
         [login logOut];
       } else {
-        // Try to login with permissions
-        [self loginAndRequestPermissionsWithSuccessHandler:nil
-                                 declinedOrCanceledHandler:^{
-                                   // If the user declined permissions tell them why we need permissions
-                                   // and ask for permissions again if they want to grant permissions.
-                                   [self alertDeclinedPublishActionsWithCompletion:^{
-                                     [self loginAndRequestPermissionsWithSuccessHandler:nil
-                                                              declinedOrCanceledHandler:nil
-                                                                           errorHandler:^(NSError *error) {
-                                                     NSLog(@"Error: %@", error.description);
-                                                   }];
-                                   }];
-                                 }
-                                              errorHandler:^(NSError *error) {
-                                                NSLog(@"Error: %@", error.description);
-                                              }];
+        FBSDKLoginManager *login = [[FBSDKLoginManager alloc] init];
+        [login logInWithPermissions:@[@"public_profile"]
+                 fromViewController:self
+                            handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+                              if (error) {
+                                NSLog(@"Error: %@", error.description);
+                              }
+                            }];
       }
     }
   }
-}
-
-- (BOOL)hasPlayedAtLeastOnce
-{
-  return _lastPlayerCall != RPSCallNone && _lastComputerCall != RPSCallNone;
-}
-
-- (id<FBSDKSharingContent>)getGameShareContent:(BOOL)isShareForMessenger
-{
-  return (self.hasPlayedAtLeastOnce && !isShareForMessenger) ? [self getGameActivityShareContent] : [self getGameLinkShareContent];
-}
-
-- (FBSDKShareOpenGraphContent *)getGameActivityShareContent
-{
-  // set action's gesture property
-  FBSDKShareOpenGraphAction *action = [FBSDKShareOpenGraphAction actionWithType:@"fb_sample_rps:throw"
-                                                                       objectID:builtInOpenGraphObjects[_lastPlayerCall]
-                                                                            key:@"fb_sample_rps:gesture"];
-  // set action's opposing_gesture property
-  [action setString:builtInOpenGraphObjects[_lastComputerCall] forKey:@"fb_sample_rps:opposing_gesture"];
-
-  FBSDKShareOpenGraphContent *content = [[FBSDKShareOpenGraphContent alloc] init];
-  content.action = action;
-  content.previewPropertyName = @"fb_sample_rps:gesture";
-  return content;
-}
-
-- (BOOL)shareWith:(id<FBSDKSharingDialog>)dialog content:(id<FBSDKSharingContent>)content
-{
-  dialog.shareContent = content;
-  dialog.delegate = self;
-  return [dialog show];
 }
 
 - (void)displayInstallAppWithAppName:(NSString *)appName
@@ -495,7 +424,7 @@ typedef void (^RPSBlock)(void);
                       ok:@"Install or Upgrade Now"
                   cancel:@"Decide Later"
               completion:^{
-                [[UIApplication sharedApplication]
+                [UIApplication.sharedApplication
                  openURL:[NSURL URLWithString:[NSString stringWithFormat:@"itms-apps://itunes.com/apps/%@", appName]]];
               }];
 }
@@ -505,68 +434,6 @@ typedef void (^RPSBlock)(void);
   FBSDKShareLinkContent *content = [[FBSDKShareLinkContent alloc] init];
   content.contentURL = [NSURL URLWithString:@"https://developers.facebook.com/"];
   return content;
-}
-
-- (FBSDKShareOpenGraphObject *)createGameObject
-{
-  RPSResult result = [self resultForPlayerCall:_lastPlayerCall
-                                  computerCall:_lastComputerCall];
-
-  NSString *resultName = kResults[result];
-
-  FBSDKShareOpenGraphObject *object = [[FBSDKShareOpenGraphObject alloc] init];
-  [object setString:@"fb_sample_rps:game" forKey:@"og:type"];
-  [object setString:@"an awesome game of Rock, Paper, Scissors" forKey:@"og:title"];
-  [object setString:builtInOpenGraphObjects[_lastPlayerCall] forKey:@"fb_sample_rps:player_gesture"];
-  [object setString:builtInOpenGraphObjects[_lastComputerCall] forKey:@"fb_sample_rps:opponent_gesture"];
-  [object setString:resultName forKey:@"fb_sample_rps:result"];
-  [object setString:photoURLs[_lastPlayerCall] forKey:@"og:image"];
-  return object;
-}
-
-- (FBSDKShareOpenGraphAction *)createPlayActionWithGame:(FBSDKShareOpenGraphObject *)game
-{
-  return [FBSDKShareOpenGraphAction actionWithType:@"fb_sample_rps:play" object:game key:@"fb_sample_rps:game"];
-}
-
-- (void)loginAndRequestPermissionsWithSuccessHandler:(RPSBlock)successHandler
-                           declinedOrCanceledHandler:(RPSBlock)declinedOrCanceledHandler
-                                        errorHandler:(void (^)(NSError *))errorHandler
-{
-  FBSDKLoginManager *login = [[FBSDKLoginManager alloc] init];
-  [login logInWithPermissions:@[@"publish_actions"]
-           fromViewController:self
-                      handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-                        if (error) {
-                          if (errorHandler) {
-                            errorHandler(error);
-                          }
-                          return;
-                        }
-
-                        if ([FBSDKAccessToken currentAccessToken]
-                            && [[FBSDKAccessToken currentAccessToken].permissions containsObject:@"publish_actions"]) {
-                          if (successHandler) {
-                            successHandler();
-                          }
-                          return;
-                        }
-
-                        if (declinedOrCanceledHandler) {
-                          declinedOrCanceledHandler();
-                        }
-                      }];
-}
-
-- (void)alertDeclinedPublishActionsWithCompletion:(RPSBlock)completion
-{
-  UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"Publish Permissions"
-                                                      message:@"Publish permissions are needed to share game content automatically. Do you want to enable publish permissions?"
-                                                     delegate:self
-                                            cancelButtonTitle:@"No"
-                                            otherButtonTitles:@"Ok", nil];
-  _alertOkHandler = [completion copy];
-  [alertView show];
 }
 
 - (void)alertWithMessage:(NSString *)message
@@ -581,65 +448,6 @@ typedef void (^RPSBlock)(void);
                                             otherButtonTitles:ok, nil];
   _alertOkHandler = [completion copy];
   [alertView show];
-}
-
-- (void)publishPhotoForGesture:(RPSCall)gesture
-{
-  FBSDKGraphRequestConnection *conn = [[FBSDKGraphRequestConnection alloc] init];
-  FBSDKGraphRequest *request = [[FBSDKGraphRequest alloc] initWithGraphPath:@"me/staging_resources"
-                                                                 parameters:@{@"file" : _imagesToPublish[gesture]}
-                                                                tokenString:[FBSDKAccessToken currentAccessToken].tokenString
-                                                                    version:nil
-                                                                 HTTPMethod:@"POST"];
-  [conn addRequest:request completionHandler:^(FBSDKGraphRequestConnection *connection, id result, NSError *error) {
-    if (error) {
-      NSLog(@"%@", error);
-    } else {
-      photoURLs[gesture] = result[@"uri"];
-      [self publishResult];
-    }
-  }];
-  [conn start];
-}
-
-- (void)publishResult
-{
-  // Check if we have publish permissions and ask for them if we don't
-  if (![FBSDKAccessToken currentAccessToken]
-      || ![[FBSDKAccessToken currentAccessToken].permissions containsObject:@"publish_actions"]) {
-    NSLog(@"Re-requesting permissions");
-    _interestedInImplicitShare = NO;
-    [self alertWithMessage:@"Share game activity with your friends?"
-                        ok:@"Yes"
-                    cancel:@"Maybe Later"
-                completion:^{
-                  _interestedInImplicitShare = YES;
-                  [self loginAndRequestPermissionsWithSuccessHandler:^{
-                          [self publishResult];
-                        }
-                                           declinedOrCanceledHandler:nil
-                                                        errorHandler:^(NSError *error) {
-                                               NSLog(@"Error: %@", error.description);
-                                             }];
-                }];
-    return;
-  }
-
-  // We want to upload a photo representing the gesture the player threw, and use it as the
-  // image for our game OG object. But we optimize this and only upload one instance per session.
-  // So if we already have the image URL, we use it, otherwise we'll initiate an upload and
-  // publish the result once it finishes.
-  if (!photoURLs[_lastPlayerCall]) {
-    [self publishPhotoForGesture:_lastPlayerCall];
-    return;
-  }
-
-  FBSDKShareOpenGraphObject *game = [self createGameObject];
-  FBSDKShareOpenGraphAction *action = [self createPlayActionWithGame:game];
-  FBSDKShareOpenGraphContent *content = [[FBSDKShareOpenGraphContent alloc] init];
-  content.action = action;
-  content.previewPropertyName = @"fb_sample_rps:game";
-  [FBSDKShareAPI shareWithContent:content delegate:self];
 }
 
 #pragma mark - FBSDKSharingDelegate
@@ -676,8 +484,8 @@ typedef void (^RPSBlock)(void);
                                 kResults[lastResult],
                                 transitionalWord,
                                 callType[lastPlayerCall + 1]];
-    [FBSDKAppEvents logEvent:@"Throw Based on Last Result"
-                  parameters:@{callType[playerCall + 1] : previousResult}];
+    [FBSDKAppEvents.shared logEvent:@"Throw Based on Last Result"
+                         parameters:@{callType[playerCall + 1] : previousResult}];
   }
 }
 
@@ -685,9 +493,9 @@ typedef void (^RPSBlock)(void);
 {
   // log the user's choice and the respective result
   NSString *playerChoice = callType[playerCall + 1];
-  [FBSDKAppEvents logEvent:@"Round End"
-                valueToSum:timeTaken
-                parameters:@{@"roundResult" : kResults[result], @"playerChoice" : playerChoice}];
+  [FBSDKAppEvents.shared logEvent:@"Round End"
+                       valueToSum:timeTaken
+                       parameters:@{@"roundResult" : kResults[result], @"playerChoice" : playerChoice}];
 }
 
 - (void)logTimeTaken:(NSTimeInterval)timeTaken
@@ -698,9 +506,9 @@ typedef void (^RPSBlock)(void);
       : timeTaken < 1.5f ? @"1.0s <= t < 1.5s"
         : timeTaken < 2.0f ? @"1.5s <= t < 2.0s"
           : timeTaken < 2.5f ? @"2.0s <= t < 2.5s" : @" >= 2.5s");
-  [FBSDKAppEvents logEvent:@"Time Taken"
-                valueToSum:timeTaken
-                parameters:@{@"Time Taken" : timeTakenStr}];
+  [FBSDKAppEvents.shared logEvent:@"Time Taken"
+                       valueToSum:timeTaken
+                       parameters:@{@"Time Taken" : timeTakenStr}];
 }
 
 @end
